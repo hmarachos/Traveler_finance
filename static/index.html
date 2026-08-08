@@ -118,6 +118,9 @@
           </div>
         </form>
 
+        <h2>Все путешествия</h2>
+        <div id="tripsList" class="list"></div>
+
         <h2>Новое путешествие</h2>
         <form id="tripCreateForm" class="settings-form">
           <label>Название<input name="name" required placeholder="Греция 2027" /></label>
@@ -130,7 +133,7 @@
 
         <h2>Семьи</h2>
         <form id="familyForm" class="inline-form">
-          <label>Название<input name="name" required placeholder="Смирновы" /></label>
+          <label>Название<input name="name" required placeholder="Казанцау" /></label>
           <label>Участников<input name="members_count" required type="number" min="1" step="1" value="1" /></label>
           <button class="primary">Добавить</button>
         </form>
@@ -152,6 +155,6 @@
     </dialog>
 
     <div id="toast" role="status"></div>
-    <script src="app.js"></script>
+    <script type="module" src="js/app.js"></script>
   </body>
 </html>

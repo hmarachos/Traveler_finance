@@ -1,0 +1,36 @@
+version: '3.9'
+
+services:
+  traveler-finance:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: traveler-finance-app
+    ports:
+      - "8080:8080"
+    environment:
+      PORT: 8080
+      TRAVELER_DB: /app/data/traveler.sqlite3
+    volumes:
+      - traveler-data:/app/data
+      - ./static:/app/static:ro
+      - ./backend:/app/backend:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/api/trips"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - traveler-network
+    labels:
+      - "com.example.description=Traveler Finance PWA"
+
+volumes:
+  traveler-data:
+    driver: local
+
+networks:
+  traveler-network:
+    driver: bridge
