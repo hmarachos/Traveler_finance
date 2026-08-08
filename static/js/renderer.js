@@ -43,14 +43,17 @@ export function renderSummary() {
   qs("#transferTotal").textContent = money(totals.transfers_minor, trip.currency);
   qs("#advanceTotal").textContent = money(totals.advances_minor, trip.currency);
 
+  // Balance Overview (кто кому должен)
+  renderBalanceOverview(familyStats, trip.currency);
+
   // Family cards
   qs("#familyCards").innerHTML = familyStats
     .map((stat) => {
       const balance = stat.expense_balance_minor;
-      const total =
-        balance +
-        stat.loan_receivable_minor -
-        stat.loan_payable_minor;
+      const transferBalance = stat.transfers_received_minor - stat.transfers_sent_minor;
+      const advanceBalance = stat.advances_received_minor - stat.advances_sent_minor;
+      const loanBalance = stat.loan_receivable_minor - stat.loan_payable_minor;
+      const totalBalance = balance + transferBalance + advanceBalance + loanBalance;
 
       return `
         <article class="card">
@@ -71,6 +74,8 @@ export function renderSummary() {
               <span>Баланс расходов</span>
               <span class="${signedClass(balance)}">${money(balance, trip.currency)}</span>
             </p>
+            ${transferBalance !== 0 ? `<p class="line"><span>Переводы</span><span class="${signedClass(transferBalance)}">${money(transferBalance, trip.currency)}</span></p>` : ''}
+            ${advanceBalance !== 0 ? `<p class="line"><span>Авансы</span><span class="${signedClass(advanceBalance)}">${money(advanceBalance, trip.currency)}</span></p>` : ''}
             <p class="line">
               <span>Дали в долг</span>
               <span>${money(stat.loans_given_minor, trip.currency)}</span>
@@ -87,9 +92,9 @@ export function renderSummary() {
               <span>Долг к возврату</span>
               <span>${money(stat.loan_payable_minor, trip.currency)}</span>
             </p>
-            <p class="line">
-              <span>Итог без переводов</span>
-              <span class="${signedClass(total)}">${money(total, trip.currency)}</span>
+            <p class="line" style="border-top: 1px solid var(--line); margin-top: 8px; padding-top: 8px;">
+              <span><strong>Итоговый баланс</strong></span>
+              <span class="${signedClass(totalBalance)}" style="font-weight: bold;">${money(totalBalance, trip.currency)}</span>
             </p>
           </div>
         </article>
@@ -271,4 +276,85 @@ export function renderTripsList() {
         `)
         .join("")
     : emptyState("Путешествий пока нет");
+}
+
+/**
+ * Render balance overview - кто кому должен
+ */
+export function renderBalanceOverview(familyStats, currency) {
+  // Calculate net balance for each family
+  const balances = familyStats.map((stat) => {
+    const expenseBalance = stat.expense_balance_minor;
+    const transferBalance = stat.transfers_received_minor - stat.transfers_sent_minor;
+    const advanceBalance = stat.advances_received_minor - stat.advances_sent_minor;
+    const loanBalance = stat.loan_receivable_minor - stat.loan_payable_minor;
+    const netBalance = expenseBalance + transferBalance + advanceBalance + loanBalance;
+
+    return {
+      id: stat.family.id,
+      name: stat.family.name,
+      balance: netBalance,
+    };
+  });
+
+  // Separate debtors and creditors
+  const debtors = balances.filter((b) => b.balance < 0).sort((a, b) => a.balance - b.balance);
+  const creditors = balances.filter((b) => b.balance > 0).sort((a, b) => b.balance - a.balance);
+
+  // Generate settled payments
+  const payments = [];
+  let debtorIdx = 0;
+  let creditorIdx = 0;
+  let debtorRemaining = Math.abs(debtors[0]?.balance || 0);
+  let creditorRemaining = creditors[0]?.balance || 0;
+
+  while (debtorIdx < debtors.length && creditorIdx < creditors.length) {
+    const amount = Math.min(debtorRemaining, creditorRemaining);
+    if (amount > 0) {
+      payments.push({
+        from: debtors[debtorIdx].name,
+        to: creditors[creditorIdx].name,
+        amount,
+      });
+    }
+
+    debtorRemaining -= amount;
+    creditorRemaining -= amount;
+
+    if (debtorRemaining === 0) {
+      debtorIdx++;
+      debtorRemaining = Math.abs(debtors[debtorIdx]?.balance || 0);
+    }
+    if (creditorRemaining === 0) {
+      creditorIdx++;
+      creditorRemaining = creditors[creditorIdx]?.balance || 0;
+    }
+  }
+
+  // Render
+  const container = qs("#balanceOverview");
+  if (payments.length === 0) {
+    container.innerHTML = `
+      <div class="balance-card balanced">
+        <div class="balance-icon">✓</div>
+        <div class="balance-text">
+          <p class="balance-title">Все расчеты завершены</p>
+          <p class="balance-desc">Никто никому не должен</p>
+        </div>
+      </div>
+    `;
+  } else {
+    container.innerHTML = payments
+      .map(
+        (p) => `
+      <div class="balance-card payment">
+        <div class="balance-from">${p.from}</div>
+        <div class="balance-arrow">→</div>
+        <div class="balance-to">${p.to}</div>
+        <div class="balance-amount">${money(p.amount, currency)}</div>
+      </div>
+    `
+      )
+      .join("");
+  }
 }

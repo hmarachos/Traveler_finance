@@ -1,0 +1,62 @@
+version: '3.9'
+
+services:
+  # Основное приложение Python
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: traveler-finance-backend
+    environment:
+      PORT: 8080
+      TRAVELER_DB: /app/data/traveler.sqlite3
+    volumes:
+      - traveler-data:/app/data
+      - ./static:/app/static:ro
+      - ./backend:/app/backend:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/api/trips')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - traveler-network
+    expose:
+      - 8080
+    labels:
+      - "com.example.description=Traveler Finance Backend"
+
+  # Nginx reverse proxy
+  nginx:
+    image: nginx:1.25-alpine
+    container_name: traveler-finance-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - traveler-logs:/var/log/nginx
+    depends_on:
+      - backend
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - traveler-network
+    labels:
+      - "com.example.description=Traveler Finance Nginx Proxy"
+
+volumes:
+  traveler-data:
+    driver: local
+  traveler-logs:
+    driver: local
+
+networks:
+  traveler-network:
+    driver: bridge
