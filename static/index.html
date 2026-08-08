@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#22615f" />
+    <link rel="icon" href="favicon.ico" sizes="any" />
+    <link rel="manifest" href="manifest.json" />
+    <link rel="stylesheet" href="styles.css" />
+    <title>Traveler Finance</title>
+  </head>
+  <body>
+    <main class="app">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Путешествие</p>
+          <h1 id="tripName">Traveler Finance</h1>
+        </div>
+        <div class="top-actions">
+          <select id="tripSelect" title="Выбрать путешествие" aria-label="Выбрать путешествие"></select>
+          <button class="icon-button" id="refreshBtn" title="Обновить" aria-label="Обновить">↻</button>
+        </div>
+      </header>
+
+      <nav class="tabs" aria-label="Разделы">
+        <button class="tab active" data-view="dashboard">Главная</button>
+        <button class="tab" data-view="add">Добавить</button>
+        <button class="tab" data-view="loans">Займы</button>
+        <button class="tab" data-view="journal">Операции</button>
+        <button class="tab" data-view="settings">Настройки</button>
+      </nav>
+
+      <section id="dashboard" class="view active">
+        <div class="hero">
+          <div>
+            <span>Общие расходы</span>
+            <strong id="totalExpenses">0 €</strong>
+          </div>
+          <div class="hero-grid">
+            <p><b id="totalPaid">0 €</b><span>Оплачено</span></p>
+            <p><b id="familyCount">0</b><span>Семей</span></p>
+            <p><b id="memberCount">0</b><span>Участников</span></p>
+          </div>
+        </div>
+
+        <div class="metric-row">
+          <div><span>Займов</span><b id="loanTotal">0 €</b></div>
+          <div><span>Открытый долг</span><b id="loanOpen">0 €</b></div>
+          <div><span>Переводов</span><b id="transferTotal">0 €</b></div>
+          <div><span>Авансов</span><b id="advanceTotal">0 €</b></div>
+        </div>
+
+        <h2>Финансовое состояние</h2>
+        <div id="familyCards" class="cards"></div>
+
+        <h2>Взаиморасчеты по расходам</h2>
+        <div id="settlements" class="list"></div>
+
+        <h2>Займы</h2>
+        <div id="loanObligations" class="list"></div>
+      </section>
+
+      <section id="add" class="view">
+        <div class="segmented">
+          <button class="active" data-form="expenseForm">Расход</button>
+          <button data-form="transferForm">Перевод</button>
+          <button data-form="loanForm">Дать в долг</button>
+        </div>
+
+        <form id="expenseForm" class="entry-form active">
+          <label>Описание<input name="description" required placeholder="Ресторан" /></label>
+          <label>Сумма<input name="amount" required inputmode="decimal" placeholder="180.00" /></label>
+          <label>Категория<input name="category" placeholder="Еда" /></label>
+          <label>Кто оплатил<select name="paid_by_family_id" required></select></label>
+          <label>Распределение<select name="split_method"><option value="equal">Поровну между семьями</option><option value="per_person">По количеству людей</option></select></label>
+          <button class="primary">Добавить расход</button>
+        </form>
+
+        <form id="transferForm" class="entry-form">
+          <label>От кого<select name="from_family_id" required></select></label>
+          <label>Кому<select name="to_family_id" required></select></label>
+          <label>Сумма<input name="amount" required inputmode="decimal" placeholder="200.00" /></label>
+          <label>Тип<select name="transfer_type"><option value="transfer">Обычный перевод</option><option value="advance">Аванс</option></select></label>
+          <label>Комментарий<input name="description" placeholder="Передали наличные" /></label>
+          <button class="primary">Сохранить перевод</button>
+        </form>
+
+        <form id="loanForm" class="entry-form">
+          <label>Кто дает<select name="lender_family_id" required></select></label>
+          <label>Кому<select name="borrower_family_id" required></select></label>
+          <label>Сумма<input name="amount" required inputmode="decimal" placeholder="500.00" /></label>
+          <label>Комментарий<input name="description" placeholder="На аренду машины" /></label>
+          <button class="primary">Дать в долг</button>
+        </form>
+      </section>
+
+      <section id="loans" class="view">
+        <h2>Активные займы</h2>
+        <div id="loansList" class="cards"></div>
+      </section>
+
+      <section id="journal" class="view">
+        <h2>Операции</h2>
+        <div id="journalList" class="timeline"></div>
+      </section>
+
+      <section id="settings" class="view">
+        <h2>Путешествие</h2>
+        <form id="tripEditForm" class="settings-form">
+          <label>Название<input name="name" required placeholder="Италия 2026" /></label>
+          <div class="two-col">
+            <label>Валюта<input name="currency" required maxlength="3" placeholder="EUR" /></label>
+            <label>Код доступа<input name="access_code" required placeholder="IT26X7" /></label>
+          </div>
+          <div class="form-actions">
+            <button class="primary">Сохранить</button>
+            <button type="button" class="danger" id="deleteTripBtn">Удалить путешествие</button>
+          </div>
+        </form>
+
+        <h2>Новое путешествие</h2>
+        <form id="tripCreateForm" class="settings-form">
+          <label>Название<input name="name" required placeholder="Греция 2027" /></label>
+          <div class="two-col">
+            <label>Валюта<input name="currency" required maxlength="3" value="EUR" /></label>
+            <label>Код доступа<input name="access_code" required placeholder="GR27" /></label>
+          </div>
+          <button class="primary">Создать и открыть</button>
+        </form>
+
+        <h2>Семьи</h2>
+        <form id="familyForm" class="inline-form">
+          <label>Название<input name="name" required placeholder="Смирновы" /></label>
+          <label>Участников<input name="members_count" required type="number" min="1" step="1" value="1" /></label>
+          <button class="primary">Добавить</button>
+        </form>
+        <div id="familiesList" class="list"></div>
+      </section>
+    </main>
+
+    <dialog id="repayDialog">
+      <form method="dialog" id="repayForm">
+        <h2>Вернуть часть</h2>
+        <input type="hidden" name="loan_id" />
+        <label>Сумма<input name="amount" required inputmode="decimal" /></label>
+        <label>Комментарий<input name="description" placeholder="Возврат наличными" /></label>
+        <div class="dialog-actions">
+          <button value="cancel">Отмена</button>
+          <button class="primary" value="default">Подтвердить</button>
+        </div>
+      </form>
+    </dialog>
+
+    <div id="toast" role="status"></div>
+    <script src="app.js"></script>
+  </body>
+</html>
