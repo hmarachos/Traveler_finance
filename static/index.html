@@ -110,7 +110,15 @@
         <form id="tripEditForm" class="settings-form">
           <label>Название<input name="name" required placeholder="Италия 2026" /></label>
           <div class="two-col">
-            <label>Валюта<input name="currency" required maxlength="3" placeholder="EUR" /></label>
+            <label>Валюта
+              <select name="currency" required>
+                <option value="EUR">€ EUR (Евро)</option>
+                <option value="USD">$ USD (Доллар США)</option>
+                <option value="RUB">₽ RUB (Российский рубль)</option>
+                <option value="BYN">Br BYN (Белорусский рубль)</option>
+                <option value="CNY">¥ CNY (Китайский юань)</option>
+              </select>
+            </label>
             <label>Код доступа<input name="access_code" required placeholder="IT26X7" /></label>
           </div>
           <div class="form-actions">
@@ -126,7 +134,15 @@
         <form id="tripCreateForm" class="settings-form">
           <label>Название<input name="name" required placeholder="Греция 2027" /></label>
           <div class="two-col">
-            <label>Валюта<input name="currency" required maxlength="3" value="EUR" /></label>
+            <label>Валюта
+              <select name="currency" required>
+                <option value="EUR">€ EUR (Евро)</option>
+                <option value="USD">$ USD (Доллар США)</option>
+                <option value="RUB">₽ RUB (Российский рубль)</option>
+                <option value="BYN">Br BYN (Белорусский рубль)</option>
+                <option value="CNY">¥ CNY (Китайский юань)</option>
+              </select>
+            </label>
             <label>Код доступа<input name="access_code" required placeholder="GR27" /></label>
           </div>
           <button class="primary">Создать и открыть</button>
