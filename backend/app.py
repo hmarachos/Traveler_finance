@@ -402,6 +402,9 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         self.route()
 
+    def do_PUT(self):
+        self.route()
+
     def do_DELETE(self):
         self.route()
 
@@ -597,6 +600,33 @@ class Handler(BaseHTTPRequestHandler):
                 )
                 return self.send_json({"remaining_amount_minor": remaining, "status": status}, HTTPStatus.CREATED)
 
+            family_edit = re.match(r"^families/(\d+)$", tail)
+            if family_edit and self.command == "PUT":
+                family_id = int(family_edit.group(1))
+                body = self.read_json()
+                name = body["name"].strip()
+                members_count = int(body["members_count"])
+                
+                if not name:
+                    raise ValueError("Family name is required")
+                if members_count <= 0:
+                    raise ValueError("Members count must be positive")
+                
+                family = row_to_dict(
+                    db.execute(
+                        "SELECT * FROM families WHERE id = ? AND trip_id = ? AND deleted_at IS NULL",
+                        (family_id, trip_id),
+                    ).fetchone()
+                )
+                if not family:
+                    raise LookupError("Family not found")
+                
+                db.execute(
+                    "UPDATE families SET name = ?, members_count = ?, updated_at = ? WHERE id = ? AND trip_id = ?",
+                    (name, members_count, now(), family_id, trip_id),
+                )
+                return self.send_json({"ok": True})
+                
             family_delete = re.match(r"^families/(\d+)$", tail)
             if family_delete and self.command == "DELETE":
                 family_id = int(family_delete.group(1))

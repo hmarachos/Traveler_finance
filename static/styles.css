@@ -578,3 +578,29 @@ dialog::backdrop {
     align-self: flex-end;
   }
 }
+/* Family edit form styles */
+.hidden {
+  display: none !important;
+}
+
+.family-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.family-edit-form {
+  margin-top: 12px;
+  padding: 12px;
+  background: var(--green-soft);
+  border-radius: 8px;
+  border: 1px solid rgba(34, 97, 95, 0.2);
+}
+
+.family-edit-form .inline-form {
+  margin-bottom: 0;
+}
+
+.family-edit-form .inline-form label {
+  margin: 0;
+}

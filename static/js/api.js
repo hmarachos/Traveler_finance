@@ -86,6 +86,16 @@ export function createFamily(tripId, data) {
 }
 
 /**
+ * Update family
+ */
+export function updateFamily(tripId, familyId, data) {
+  return api(`/api/trips/${tripId}/families/${familyId}`, {
+    method: "PUT",
+    body: JSON.stringify(data),
+  });
+}
+
+/**
  * Delete family
  */
 export function deleteFamily(tripId, familyId) {

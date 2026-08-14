@@ -106,12 +106,27 @@ export function renderSummary() {
   qs("#familiesList").innerHTML = state.families
     .map(
       (family) => `
-      <div class="list-item family-row">
+      <div class="list-item family-row" data-family-id="${family.id}">
         <div>
           <strong>${family.name}</strong>
           <p class="meta">${family.members_count} участников</p>
+          <form class="family-edit-form hidden" data-family-edit="${family.id}">
+            <div class="inline-form">
+              <label>
+                <input type="text" name="name" value="${family.name}" placeholder="Название семьи" required />
+              </label>
+              <label>
+                <input type="number" name="members_count" value="${family.members_count}" min="1" step="1" placeholder="Участники" required />
+              </label>
+              <button type="submit" class="secondary">Сохранить</button>
+              <button type="button" class="danger" data-cancel-edit="${family.id}">Отмена</button>
+            </div>
+          </form>
         </div>
-        <button class="danger" data-delete-family="${family.id}">Удалить</button>
+        <div class="family-actions">
+          <button class="secondary" data-edit-family="${family.id}">Редактировать</button>
+          <button class="danger" data-delete-family="${family.id}">Удалить</button>
+        </div>
       </div>
     `
     )

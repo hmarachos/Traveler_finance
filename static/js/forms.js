@@ -14,6 +14,7 @@ import {
   updateTrip,
   deleteTrip,
   createFamily,
+  updateFamily,
   deleteFamily,
   createExpense,
   createTransfer,
@@ -137,6 +138,57 @@ export function wireInteractions(onDataChange) {
     if (repayButton) {
       qs("#repayForm [name='loan_id']").value = repayButton.dataset.repay;
       qs("#repayDialog").showModal();
+      return;
+    }
+
+    // Edit family button handler
+    const editFamilyButton = event.target.closest("[data-edit-family]");
+    if (editFamilyButton) {
+      const familyId = editFamilyButton.dataset.editFamily;
+      const familyRow = editFamilyButton.closest(".family-row");
+      const viewDiv = familyRow.querySelector("div:first-child");
+      const editForm = familyRow.querySelector(`[data-family-edit="${familyId}"]`);
+      
+      // Hide the view, show the edit form
+      viewDiv.querySelector("strong").style.display = "none";
+      viewDiv.querySelector(".meta").style.display = "none";
+      editForm.classList.remove("hidden");
+      editFamilyButton.style.display = "none";
+      familyRow.querySelector(`[data-delete-family="${familyId}"]`).style.display = "none";
+      
+      // Add event listener to the edit form if not already added
+      const submitBtn = editForm.querySelector('button[type="submit"]');
+      if (submitBtn && !submitBtn.dataset.hasListener) {
+        submitBtn.dataset.hasListener = "true";
+        editForm.addEventListener("submit", async (e) => {
+          e.preventDefault();
+          const formData = formPayload(editForm);
+          try {
+            await updateFamily(state.tripId, familyId, formData);
+            await onDataChange();
+            toast("Семья обновлена");
+          } catch (error) {
+            toast(error.message);
+          }
+        });
+      }
+      return;
+    }
+
+    // Cancel edit handler
+    const cancelEditButton = event.target.closest("[data-cancel-edit]");
+    if (cancelEditButton) {
+      const familyId = cancelEditButton.dataset.cancelEdit;
+      const familyRow = cancelEditButton.closest(".family-row");
+      const viewDiv = familyRow.querySelector("div:first-child");
+      const editForm = familyRow.querySelector(`[data-family-edit="${familyId}"]`);
+      
+      // Show the view, hide the edit form
+      viewDiv.querySelector("strong").style.display = "block";
+      viewDiv.querySelector(".meta").style.display = "block";
+      editForm.classList.add("hidden");
+      familyRow.querySelector(`[data-edit-family="${familyId}"]`).style.display = "inline-block";
+      familyRow.querySelector(`[data-delete-family="${familyId}"]`).style.display = "inline-block";
       return;
     }
 
