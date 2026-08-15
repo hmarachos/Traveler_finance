@@ -182,6 +182,7 @@ export function renderLoans(loans) {
   const currency = state.trip?.currency || "EUR";
   const familyName = (id) =>
     state.families.find((f) => f.id === id)?.name || "Unknown";
+  updateState({ loans });
 
   const loansListEl = qs("#loansList");
   if (loansListEl) {
@@ -218,8 +219,15 @@ export function renderLoans(loans) {
               </div>
               ${
                 loan.remaining_amount_minor > 0
-                  ? `<div class="loan-actions"><button data-repay="${loan.id}">Вернуть часть</button></div>`
-                  : ""
+                  ? `<div class="loan-actions">
+                      <button data-repay="${loan.id}">Вернуть часть</button>
+                      <button class="secondary" data-edit-loan="${loan.id}">Редактировать</button>
+                      <button class="danger" data-delete-loan="${loan.id}">Удалить</button>
+                    </div>`
+                  : `<div class="loan-actions">
+                      <button class="secondary" data-edit-loan="${loan.id}">Редактировать</button>
+                      <button class="danger" data-delete-loan="${loan.id}">Удалить</button>
+                    </div>`
               }
             </article>
           `

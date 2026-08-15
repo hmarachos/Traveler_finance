@@ -269,6 +269,24 @@ export function wireInteractions(onDataChange) {
       qs("#repayDialog").showModal();
       return;
     }
+
+    const editLoanButton = event.target.closest("[data-edit-loan]");
+    if (editLoanButton) {
+      openLoanEditor(editLoanButton.dataset.editLoan);
+      return;
+    }
+
+    const deleteLoanButton = event.target.closest("[data-delete-loan]");
+    if (deleteLoanButton) {
+      const loanId = deleteLoanButton.dataset.deleteLoan;
+      if (!confirm("Удалить этот заем?")) return;
+      
+      deleteLoan(state.tripId, loanId)
+        .then(onDataChange)
+        .then(() => toast("Заем удален"))
+        .catch((error) => toast(error.message));
+      return;
+    }
     
     // Click on journal entry (whole container is clickable)
     const timelineItem = event.target.closest(".timeline-item[data-entry-id]");
@@ -472,23 +490,7 @@ export function wireInteractions(onDataChange) {
     // Click on loan card
     const loanCard = event.target.closest(".card[data-loan-id]");
     if (loanCard && !event.target.closest("button")) {
-      const loanId = loanCard.dataset.loanId;
-      const loans = state.loans || [];
-      const loan = loans.find(l => String(l.id) === String(loanId));
-      
-      if (loan) {
-        const dialog = qs("#editLoanDialog");
-        const form = qs("#editLoanForm");
-        
-        form.elements.loan_id.value = loanId;
-        form.elements.amount.value = (loan.principal_amount_minor / 100).toFixed(2);
-        form.elements.description.value = loan.description || '';
-        form.elements.lender_family_id.value = loan.lender_family_id;
-        form.elements.borrower_family_id.value = loan.borrower_family_id;
-        
-        dialog.showModal();
-        syncSelectElements();
-      }
+      openLoanEditor(loanCard.dataset.loanId);
       return;
     }
 
@@ -660,6 +662,25 @@ export function wireInteractions(onDataChange) {
       toast(error.message);
     }
   });
+}
+
+function openLoanEditor(loanId) {
+  const loans = state.loans || [];
+  const loan = loans.find(l => String(l.id) === String(loanId));
+  
+  if (!loan) return;
+  
+  const dialog = qs("#editLoanDialog");
+  const form = qs("#editLoanForm");
+  
+  form.elements.loan_id.value = loanId;
+  form.elements.amount.value = (loan.principal_amount_minor / 100).toFixed(2);
+  form.elements.description.value = loan.description || '';
+  form.elements.lender_family_id.value = loan.lender_family_id;
+  form.elements.borrower_family_id.value = loan.borrower_family_id;
+  
+  dialog.showModal();
+  syncSelectElements();
 }
 
 function syncFamilySelectPair(select, formSelector, firstName, secondName) {

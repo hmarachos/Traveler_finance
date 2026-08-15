@@ -216,6 +216,21 @@ class TravelerFinanceHandler(BaseHTTPRequestHandler):
             )
             return self.send_json({"id": loan_id}, HTTPStatus.CREATED)
         
+        # Update loan
+        loan_edit = re.match(r"^loans/(\d+)$", tail)
+        if loan_edit and self.command == "PUT":
+            loan_id = int(loan_edit.group(1))
+            body = self.read_json()
+            Loan.update(
+                trip_id,
+                loan_id,
+                int(body["lender_family_id"]),
+                int(body["borrower_family_id"]),
+                parse_money(body["amount"]),
+                body.get("description", "").strip(),
+            )
+            return self.send_json({"ok": True})
+        
         # Delete loan
         soft_delete = re.match(r"^loans/(\d+)$", tail)
         if soft_delete and self.command == "DELETE":

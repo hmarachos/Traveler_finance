@@ -10,6 +10,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 from models.expense import Expense
+from models.loan import Loan
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -665,25 +666,14 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send_json({"loans": loans})
             if tail == "loans" and self.command == "POST":
                 body = self.read_json()
-                stamp = now()
-                amount = parse_money(body["amount"])
-                cur = db.execute(
-                    """
-                    INSERT INTO loans(trip_id, lender_family_id, borrower_family_id, principal_amount_minor, remaining_amount_minor, description, created_at, updated_at, status)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active')
-                    """,
-                    (
-                        trip_id,
-                        int(body["lender_family_id"]),
-                        int(body["borrower_family_id"]),
-                        amount,
-                        amount,
-                        body.get("description", "").strip(),
-                        stamp,
-                        stamp,
-                    ),
+                loan_id = Loan.create(
+                    trip_id,
+                    int(body["lender_family_id"]),
+                    int(body["borrower_family_id"]),
+                    parse_money(body["amount"]),
+                    body.get("description", "").strip(),
                 )
-                return self.send_json({"id": cur.lastrowid}, HTTPStatus.CREATED)
+                return self.send_json({"id": loan_id}, HTTPStatus.CREATED)
             
             loan_edit = re.match(r"^loans/(\d+)$", tail)
             if loan_edit and self.command == "PUT":
@@ -697,24 +687,13 @@ class Handler(BaseHTTPRequestHandler):
                 )
                 if not loan:
                     raise LookupError("Loan not found")
-                stamp = now()
-                amount = parse_money(body["amount"])
-                db.execute(
-                    """
-                    UPDATE loans
-                    SET lender_family_id = ?, borrower_family_id = ?, principal_amount_minor = ?, remaining_amount_minor = ?, description = ?, updated_at = ?
-                    WHERE id = ? AND trip_id = ?
-                    """,
-                    (
-                        int(body["lender_family_id"]),
-                        int(body["borrower_family_id"]),
-                        amount,
-                        amount,
-                        body.get("description", "").strip(),
-                        stamp,
-                        loan_id,
-                        trip_id,
-                    ),
+                Loan.update(
+                    trip_id,
+                    loan_id,
+                    int(body["lender_family_id"]),
+                    int(body["borrower_family_id"]),
+                    parse_money(body["amount"]),
+                    body.get("description", "").strip(),
                 )
                 return self.send_json({"ok": True})
             if tail == "journal" and self.command == "GET":
