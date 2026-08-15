@@ -8,6 +8,7 @@ export const state = {
   trips: [],
   families: [],
   summary: null,
+  journal: [],
 };
 
 /**

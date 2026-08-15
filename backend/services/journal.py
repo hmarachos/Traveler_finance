@@ -40,6 +40,7 @@ class JournalService:
             (trip_id,)
         ):
             entries.append({
+                "id": r["id"],
                 "type": "expense",
                 "title": r["description"],
                 "amount_minor": r["amount_minor"],
@@ -64,6 +65,7 @@ class JournalService:
             entry_type = "advance" if r["transfer_type"] == "advance" else "transfer"
             
             entries.append({
+                "id": r["id"],
                 "type": entry_type,
                 "title": r["description"] or (
                     "Аванс" if r["transfer_type"] == "advance" else "Перевод"
@@ -88,6 +90,7 @@ class JournalService:
             (trip_id,)
         ):
             entries.append({
+                "id": r["id"],
                 "type": "loan",
                 "title": r["description"] or "Заем",
                 "amount_minor": r["principal_amount_minor"],
@@ -114,6 +117,7 @@ class JournalService:
             (trip_id,)
         ):
             entries.append({
+                "id": r["id"],
                 "type": "loan_repayment",
                 "title": r["description"] or "Возврат займа",
                 "amount_minor": r["amount_minor"],

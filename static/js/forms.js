@@ -9,6 +9,7 @@ import {
   toast,
   formPayload,
 } from "./utils.js";
+import { syncSelectElements } from "./renderer.js";
 import {
   createTrip,
   updateTrip,
@@ -20,6 +21,12 @@ import {
   createTransfer,
   createLoan,
   addLoanRepayment,
+  updateExpense,
+  updateTransfer,
+  updateLoan,
+  deleteExpense,
+  deleteTransfer,
+  deleteLoan,
 } from "./api.js";
 
 /**
@@ -73,6 +80,28 @@ export function wireFormHandlers(onDataChange) {
   qs("#expenseForm").addEventListener("submit", async (event) => {
     event.preventDefault();
     const form = event.currentTarget;
+    
+    // Validate split method selection
+    const splitMethodRadios = form.querySelectorAll('input[name="split_method"]:checked');
+    if (splitMethodRadios.length === 0) {
+      toast('Пожалуйста, выберите способ распределения');
+      return;
+    }
+    
+    // Handle custom category selection
+    const categorySelect = document.getElementById('categorySelect');
+    const customCategoryInput = document.getElementById('customCategoryInput');
+    if (categorySelect && customCategoryInput) {
+      if (categorySelect.value === 'Другое' && customCategoryInput.value.trim()) {
+        // Use custom category value
+        categorySelect.value = customCategoryInput.value.trim();
+      } else if (categorySelect.value === 'Другое' && !customCategoryInput.value.trim()) {
+        // Show error if custom category is empty
+        toast('Пожалуйста, введите название категории');
+        return;
+      }
+    }
+    
     try {
       await createExpense(state.tripId, formPayload(form));
       form.reset();
@@ -126,18 +155,313 @@ export function wireFormHandlers(onDataChange) {
       toast(error.message);
     }
   });
+  
+  // Edit expense form
+  qs("#editExpenseForm").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const expenseId = form.elements.expense_id.value;
+    try {
+      await updateExpense(state.tripId, expenseId, formPayload(form));
+      qs("#editExpenseDialog").close();
+      form.reset();
+      await onDataChange();
+      toast("Расход обновлен");
+    } catch (error) {
+      toast(error.message);
+    }
+  });
+  
+  // Edit transfer form
+  qs("#editTransferForm").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const transferId = form.elements.transfer_id.value;
+    try {
+      await updateTransfer(state.tripId, transferId, formPayload(form));
+      qs("#editTransferDialog").close();
+      form.reset();
+      await onDataChange();
+      toast("Перевод обновлен");
+    } catch (error) {
+      toast(error.message);
+    }
+  });
+  
+  // Edit loan form
+  qs("#editLoanForm").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const loanId = form.elements.loan_id.value;
+    try {
+      await updateLoan(state.tripId, loanId, formPayload(form));
+      qs("#editLoanDialog").close();
+      form.reset();
+      await onDataChange();
+      toast("Заем обновлен");
+    } catch (error) {
+      toast(error.message);
+    }
+  });
 }
 
 /**
  * Wire form interactions and delete buttons
  */
 export function wireInteractions(onDataChange) {
+  // Setup edit category handling
+  function setupEditCategoryHandling() {
+    const categorySelect = document.getElementById('editCategorySelect');
+    const customCategoryLabel = document.getElementById('editCustomCategoryLabel');
+    const customCategoryInput = document.getElementById('editCustomCategoryInput');
+    
+    if (!categorySelect || !customCategoryLabel || !customCategoryInput) return;
+    
+    function updateCategoryVisibility() {
+      if (categorySelect.value === 'Другое') {
+        customCategoryLabel.classList.remove('hidden');
+        customCategoryInput.required = true;
+      } else {
+        customCategoryLabel.classList.add('hidden');
+        customCategoryInput.required = false;
+        customCategoryInput.value = '';
+      }
+    }
+    
+    updateCategoryVisibility();
+    categorySelect.addEventListener('change', updateCategoryVisibility);
+  }
+  
+  setupEditCategoryHandling();
+  
   // Repay button handler
   document.body.addEventListener("click", (event) => {
     const repayButton = event.target.closest("[data-repay]");
     if (repayButton) {
       qs("#repayForm [name='loan_id']").value = repayButton.dataset.repay;
       qs("#repayDialog").showModal();
+      return;
+    }
+    
+    // Click on journal entry (whole container is clickable)
+    const timelineItem = event.target.closest(".timeline-item[data-entry-id]");
+    if (timelineItem) {
+      const entryId = timelineItem.dataset.entryId;
+      const entryType = timelineItem.dataset.entryType;
+      
+      // Helper function to find family ID by name
+      function findFamilyIdByName(familyName) {
+        const family = state.families.find(f => f.name === familyName.trim());
+        return family ? family.id : null;
+      }
+      
+      // Helper function to extract family name from expense meta
+      function extractPaidByFamilyName(meta) {
+        const parts = meta.split(' · ');
+        if (parts.length >= 1 && parts[0].startsWith('Оплатили: ')) {
+          return parts[0].replace('Оплатили: ', '').trim();
+        }
+        return null;
+      }
+      
+      // Helper function to extract family names from transfer/loan meta
+      function extractFamilyNamesFromArrow(meta) {
+        const parts = meta.split(' → ');
+        if (parts.length === 2) {
+          return {
+            from: parts[0].trim(),
+            to: parts[1].trim()
+          };
+        }
+        // Try to extract from "должны" format for loans
+        const должныParts = meta.split(' должны ');
+        if (должныParts.length === 2) {
+          return {
+            from: должныParts[0].trim(), // borrower
+            to: должныParts[1].trim()    // lender
+          };
+        }
+        return { from: null, to: null };
+      }
+      
+      // Map entry types to form field names
+      const typeConfig = {
+        'expense': {
+          dialogId: '#editExpenseDialog',
+          formId: '#editExpenseForm',
+          idField: 'expense_id',
+          getFormData: (entry) => {
+            const metaParts = entry.meta.split(' · ');
+            const category = metaParts.length >= 2 ? metaParts[1].trim() : 'Общее';
+            const splitMethod = metaParts.length >= 3 ? metaParts[2].trim() : 'equal';
+            const paidByFamilyName = extractPaidByFamilyName(entry.meta);
+            const paidByFamilyId = paidByFamilyName ? findFamilyIdByName(paidByFamilyName) : null;
+            
+            // Check if category is in standard categories
+            const standardCategories = [
+              'Общее', 'Жильё', 'Транспорт', 'Еда', 'Продукты', 
+              'Развлечения', 'Сувениры', 'Здоровье', 'Связь', 
+              'Страховка', 'Парковка', 'Туалеты', 'Другое'
+            ];
+            const categoryValue = standardCategories.includes(category) ? category : 'Другое';
+            const customCategory = standardCategories.includes(category) ? '' : category;
+            
+            return {
+              description: entry.title,
+              amount: (entry.amount_minor / 100).toFixed(2),
+              category: categoryValue,
+              custom_category: customCategory,
+              paid_by_family_id: paidByFamilyId || (state.families.length > 0 ? state.families[0].id : '1'),
+              split_method: splitMethod
+            };
+          }
+        },
+        'transfer': {
+          dialogId: '#editTransferDialog',
+          formId: '#editTransferForm',
+          idField: 'transfer_id',
+          getFormData: (entry) => {
+            const familyNames = extractFamilyNamesFromArrow(entry.meta);
+            const fromFamilyId = familyNames.from ? findFamilyIdByName(familyNames.from) : null;
+            const toFamilyId = familyNames.to ? findFamilyIdByName(familyNames.to) : null;
+            
+            return {
+              from_family_id: fromFamilyId || (state.families.length > 0 ? state.families[0].id : '1'),
+              to_family_id: toFamilyId || (state.families.length > 0 ? state.families[0].id : '1'),
+              amount: (entry.amount_minor / 100).toFixed(2),
+              transfer_type: 'transfer',
+              description: entry.title
+            };
+          }
+        },
+        'advance': {
+          dialogId: '#editTransferDialog',
+          formId: '#editTransferForm',
+          idField: 'transfer_id',
+          getFormData: (entry) => {
+            const familyNames = extractFamilyNamesFromArrow(entry.meta);
+            const fromFamilyId = familyNames.from ? findFamilyIdByName(familyNames.from) : null;
+            const toFamilyId = familyNames.to ? findFamilyIdByName(familyNames.to) : null;
+            
+            return {
+              from_family_id: fromFamilyId || (state.families.length > 0 ? state.families[0].id : '1'),
+              to_family_id: toFamilyId || (state.families.length > 0 ? state.families[0].id : '1'),
+              amount: (entry.amount_minor / 100).toFixed(2),
+              transfer_type: 'advance',
+              description: entry.title
+            };
+          }
+        },
+        'loan': {
+          dialogId: '#editLoanDialog',
+          formId: '#editLoanForm',
+          idField: 'loan_id',
+          getFormData: (entry) => {
+            const familyNames = extractFamilyNamesFromArrow(entry.meta);
+            const borrowerFamilyId = familyNames.from ? findFamilyIdByName(familyNames.from) : null;
+            const lenderFamilyId = familyNames.to ? findFamilyIdByName(familyNames.to) : null;
+            
+            return {
+              lender_family_id: lenderFamilyId || (state.families.length > 0 ? state.families[0].id : '1'),
+              borrower_family_id: borrowerFamilyId || (state.families.length > 0 ? state.families[0].id : '1'),
+              amount: (entry.amount_minor / 100).toFixed(2),
+              description: entry.title
+            };
+          }
+        },
+        'loan_repayment': {
+          dialogId: null, // No edit for repayments
+          formId: null,
+          idField: null,
+          getFormData: null
+        }
+      };
+      
+      const config = typeConfig[entryType];
+      if (!config || !config.dialogId) return; // Skip unsupported types
+      
+      const dialog = qs(config.dialogId);
+      const form = qs(config.formId);
+      
+      if (!dialog || !form) return;
+      
+      // Store entry data for later use
+      const entryData = {
+        id: entryId,
+        type: entryType,
+        element: timelineItem
+      };
+      
+      // Set form ID field
+      form.elements[config.idField].value = entryId;
+      
+      // Get entry from journal data
+      const journalData = state.journal || [];
+      const entry_full = journalData.find(
+        (entry) =>
+          String(entry.id) === String(entryId) &&
+          String(entry.type) === String(entryType)
+      );
+      
+      if (entry_full) {
+        const formData = config.getFormData(entry_full);
+        Object.keys(formData).forEach(key => {
+          if (form.elements[key]) {
+            if (key === 'split_method') {
+              const radios = form.querySelectorAll(`input[name="${key}"]`);
+              radios.forEach(radio => {
+                radio.checked = radio.value === formData[key];
+              });
+            } else {
+              form.elements[key].value = formData[key];
+            }
+          }
+        });
+        
+        // Update custom category visibility for expense form
+        if (entryType === 'expense') {
+          const categorySelect = document.getElementById('editCategorySelect');
+          const customCategoryLabel = document.getElementById('editCustomCategoryLabel');
+          const customCategoryInput = document.getElementById('editCustomCategoryInput');
+          
+          if (categorySelect && customCategoryLabel && customCategoryInput) {
+            // Trigger category change to show/hide custom category field
+            if (categorySelect.value === 'Другое' && formData.custom_category) {
+              customCategoryLabel.classList.remove('hidden');
+              customCategoryInput.required = true;
+            } else {
+              customCategoryLabel.classList.add('hidden');
+              customCategoryInput.required = false;
+            }
+          }
+        }
+      }
+      
+      dialog.showModal();
+      syncSelectElements(); // Refresh family selects
+      return;
+    }
+    
+    // Click on loan card
+    const loanCard = event.target.closest(".card[data-loan-id]");
+    if (loanCard && !event.target.closest("button")) {
+      const loanId = loanCard.dataset.loanId;
+      const loans = state.loans || [];
+      const loan = loans.find(l => String(l.id) === String(loanId));
+      
+      if (loan) {
+        const dialog = qs("#editLoanDialog");
+        const form = qs("#editLoanForm");
+        
+        form.elements.loan_id.value = loanId;
+        form.elements.amount.value = (loan.principal_amount_minor / 100).toFixed(2);
+        form.elements.description.value = loan.description || '';
+        form.elements.lender_family_id.value = loan.lender_family_id;
+        form.elements.borrower_family_id.value = loan.borrower_family_id;
+        
+        dialog.showModal();
+        syncSelectElements();
+      }
       return;
     }
 
@@ -255,4 +579,91 @@ export function wireInteractions(onDataChange) {
   qs("#refreshBtn").addEventListener("click", () =>
     onDataChange().then(() => toast("Обновлено"))
   );
+  
+  // Delete expense button
+  qs("#deleteExpenseBtn")?.addEventListener("click", async () => {
+    const form = qs("#editExpenseForm");
+    const expenseId = form.elements.expense_id.value;
+    
+    if (!confirm("Удалить этот расход?")) return;
+    
+    try {
+      await deleteExpense(state.tripId, expenseId);
+      qs("#editExpenseDialog").close();
+      form.reset();
+      await onDataChange();
+      toast("Расход удален");
+    } catch (error) {
+      toast(error.message);
+    }
+  });
+  
+  // Delete transfer button
+  qs("#deleteTransferBtn")?.addEventListener("click", async () => {
+    const form = qs("#editTransferForm");
+    const transferId = form.elements.transfer_id.value;
+    
+    if (!confirm("Удалить этот перевод?")) return;
+    
+    try {
+      await deleteTransfer(state.tripId, transferId);
+      qs("#editTransferDialog").close();
+      form.reset();
+      await onDataChange();
+      toast("Перевод удален");
+    } catch (error) {
+      toast(error.message);
+    }
+  });
+  
+  // Delete loan button
+  qs("#deleteLoanBtn")?.addEventListener("click", async () => {
+    const form = qs("#editLoanForm");
+    const loanId = form.elements.loan_id.value;
+    
+    if (!confirm("Удалить этот заем?")) return;
+    
+    try {
+      await deleteLoan(state.tripId, loanId);
+      qs("#editLoanDialog").close();
+      form.reset();
+      await onDataChange();
+      toast("Заем удален");
+    } catch (error) {
+      toast(error.message);
+    }
+  });
 }
+
+/**
+ * Handle category selection and custom category input
+ */
+function setupCategoryHandling() {
+  const categorySelect = document.getElementById('categorySelect');
+  const customCategoryLabel = document.getElementById('customCategoryLabel');
+  const customCategoryInput = document.getElementById('customCategoryInput');
+  const expenseForm = document.getElementById('expenseForm');
+  
+  if (!categorySelect || !customCategoryLabel || !customCategoryInput) return;
+  
+  // Toggle custom category input visibility
+  function updateCategoryVisibility() {
+    if (categorySelect.value === 'Другое') {
+      customCategoryLabel.classList.remove('hidden');
+      customCategoryInput.required = true;
+    } else {
+      customCategoryLabel.classList.add('hidden');
+      customCategoryInput.required = false;
+      customCategoryInput.value = '';
+    }
+  }
+  
+  // Initialize visibility
+  updateCategoryVisibility();
+  
+  // Listen for category changes
+  categorySelect.addEventListener('change', updateCategoryVisibility);
+}
+
+// Call setup on DOM ready
+document.addEventListener('DOMContentLoaded', setupCategoryHandling);

@@ -77,6 +77,16 @@ async function loadJournalView() {
 async function refreshAll() {
   await loadTrips();
   await loadSummary();
+
+  const activeView = document.querySelector(".view.active")?.id;
+
+  if (activeView === "loans") {
+    await loadLoansView();
+  }
+
+  if (activeView === "journal") {
+    await loadJournalView();
+  }
 }
 
 /**

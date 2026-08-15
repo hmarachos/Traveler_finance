@@ -2,14 +2,40 @@
 from .database import connect, row_to_dict
 
 
+# Standard expense categories for travel and shared living
+STANDARD_CATEGORIES = [
+    "Общее",
+    "Жильё",
+    "Транспорт",
+    "Еда",
+    "Продукты",
+    "Развлечения",
+    "Сувениры",
+    "Здоровье",
+    "Связь",
+    "Страховка",
+    "Парковка",
+    "Туалеты",
+    "Другое"
+]
+
+
 class Expense:
     """Expense management operations."""
+    
+    @staticmethod
+    def get_standard_categories():
+        """Get list of standard expense categories."""
+        return STANDARD_CATEGORIES
     
     @staticmethod
     def create(trip_id: int, description: str, amount_minor: int, category: str, 
                paid_by_family_id: int, split_method: str):
         """Create new expense and return its ID."""
         from .database import now
+        
+        if split_method not in ("equal", "per_person", "paid_only"):
+            raise ValueError("Invalid split_method")
         
         with connect() as db:
             stamp = now()

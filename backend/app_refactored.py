@@ -159,13 +159,16 @@ class TravelerFinanceHandler(BaseHTTPRequestHandler):
         # Create expense
         if tail == "expenses" and self.command == "POST":
             body = self.read_json()
+            split_method = body.get("split_method", "equal")
+            if split_method not in ("equal", "per_person", "paid_only"):
+                raise ValueError("Invalid split_method")
             expense_id = Expense.create(
                 trip_id,
                 body["description"].strip(),
                 parse_money(body["amount"]),
                 body.get("category", "Общее").strip() or "Общее",
                 int(body["paid_by_family_id"]),
-                body["split_method"],
+                split_method,
             )
             return self.send_json({"id": expense_id}, HTTPStatus.CREATED)
         

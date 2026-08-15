@@ -188,7 +188,7 @@ export function renderLoans(loans) {
       ? loans
           .map(
             (loan) => `
-            <article class="card">
+            <article class="card" data-loan-id="${loan.id}">
               <div class="card-title">
                 <strong>${familyName(loan.borrower_family_id)} → ${familyName(loan.lender_family_id)}</strong>
                 <span class="badge">${loan.status}</span>
@@ -234,13 +234,16 @@ export function renderLoans(loans) {
 export function renderJournal(items) {
   const currency = state.trip?.currency || "EUR";
 
+  // Save journal items to state for editing
+  updateState({ journal: items });
+
   const journalListEl = qs("#journalList");
   if (journalListEl) {
     journalListEl.innerHTML = items.length
       ? items
           .map(
             (entry) => `
-            <article class="timeline-item">
+            <article class="timeline-item clickable" data-entry-id="${entry.id}" data-entry-type="${entry.type}">
               <p class="line">
                 <span>${getTransactionLabel(entry.type)} · ${entry.title}</span>
                 <span>${money(entry.amount_minor, currency)}</span>

@@ -9,6 +9,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
+from models.expense import Expense
+
 
 ROOT = Path(__file__).resolve().parents[1]
 STATIC_DIR = ROOT / "static"
@@ -84,7 +86,7 @@ def migrate():
               amount_minor INTEGER NOT NULL CHECK (amount_minor > 0),
               category TEXT NOT NULL DEFAULT 'Общее',
               paid_by_family_id INTEGER NOT NULL REFERENCES families(id),
-              split_method TEXT NOT NULL CHECK (split_method IN ('equal', 'per_person')),
+              split_method TEXT NOT NULL,
               created_at TEXT NOT NULL,
               updated_at TEXT NOT NULL,
               deleted_at TEXT
@@ -99,6 +101,7 @@ def migrate():
               description TEXT,
               transfer_type TEXT NOT NULL CHECK (transfer_type IN ('transfer', 'advance')),
               created_at TEXT NOT NULL,
+              updated_at TEXT,
               deleted_at TEXT,
               CHECK (from_family_id <> to_family_id)
             );
@@ -128,6 +131,8 @@ def migrate():
             """
         )
         ensure_column(db, "trips", "deleted_at", "TEXT")
+        ensure_column(db, "money_transfers", "updated_at", "TEXT")
+        ensure_valid_split_method(db)
         seed(db)
 
 
@@ -135,6 +140,33 @@ def ensure_column(db: sqlite3.Connection, table: str, column: str, definition: s
     columns = {row["name"] for row in db.execute(f"PRAGMA table_info({table})")}
     if column not in columns:
         db.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
+
+
+def ensure_valid_split_method(db: sqlite3.Connection):
+    """Ensure split_method column accepts all valid values."""
+    # Get current CHECK constraint
+    try:
+        result = db.execute("PRAGMA table_info(expenses)").fetchall()
+        # Just recreate table without CHECK constraint
+        db.execute("ALTER TABLE expenses RENAME TO expenses_old")
+        db.execute("""
+            CREATE TABLE expenses (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              trip_id INTEGER NOT NULL REFERENCES trips(id),
+              description TEXT NOT NULL,
+              amount_minor INTEGER NOT NULL CHECK (amount_minor > 0),
+              category TEXT NOT NULL DEFAULT 'Общее',
+              paid_by_family_id INTEGER NOT NULL REFERENCES families(id),
+              split_method TEXT NOT NULL,
+              created_at TEXT NOT NULL,
+              updated_at TEXT NOT NULL,
+              deleted_at TEXT
+            )
+        """)
+        db.execute("INSERT INTO expenses SELECT id, trip_id, description, amount_minor, category, paid_by_family_id, COALESCE(split_method, 'equal'), created_at, updated_at, deleted_at FROM expenses_old")
+        db.execute("DROP TABLE expenses_old")
+    except sqlite3.OperationalError:
+        pass  # Table doesn't exist or other error - will be created by migrate()
 
 
 def seed(db: sqlite3.Connection):
@@ -229,10 +261,15 @@ def compute_summary(db, trip_id: int):
         if paid_by in stats:
             stats[paid_by]["expense_paid_minor"] += expense["amount_minor"]
         total_expenses += expense["amount_minor"]
-        weights = [1 for _ in fams] if expense["split_method"] == "equal" else [f["members_count"] for f in fams]
-        shares = divide_amount(expense["amount_minor"], weights)
-        for family, share in zip(fams, shares):
-            stats[family["id"]]["expense_share_minor"] += share
+        if expense["split_method"] == "paid_only":
+            # Only the paying family bears the expense
+            if paid_by in stats:
+                stats[paid_by]["expense_share_minor"] += expense["amount_minor"]
+        else:
+            weights = [1 for _ in fams] if expense["split_method"] == "equal" else [f["members_count"] for f in fams]
+            shares = divide_amount(expense["amount_minor"], weights)
+            for family, share in zip(fams, shares):
+                stats[family["id"]]["expense_share_minor"] += share
 
     for stat in stats.values():
         stat["expense_balance_minor"] = stat["expense_paid_minor"] - stat["expense_share_minor"]
@@ -344,6 +381,7 @@ def journal(db, trip_id: int):
     for r in db.execute("SELECT * FROM expenses WHERE trip_id = ? AND deleted_at IS NULL", (trip_id,)):
         items.append(
             {
+                "id": r["id"],
                 "type": "expense",
                 "title": r["description"],
                 "amount_minor": r["amount_minor"],
@@ -354,6 +392,7 @@ def journal(db, trip_id: int):
     for r in db.execute("SELECT * FROM money_transfers WHERE trip_id = ? AND deleted_at IS NULL", (trip_id,)):
         items.append(
             {
+                "id": r["id"],
                 "type": "advance" if r["transfer_type"] == "advance" else "transfer",
                 "title": r["description"] or ("Аванс" if r["transfer_type"] == "advance" else "Перевод"),
                 "amount_minor": r["amount_minor"],
@@ -364,6 +403,7 @@ def journal(db, trip_id: int):
     for r in db.execute("SELECT * FROM loans WHERE trip_id = ? AND deleted_at IS NULL", (trip_id,)):
         items.append(
             {
+                "id": r["id"],
                 "type": "loan",
                 "title": r["description"] or "Заем",
                 "amount_minor": r["principal_amount_minor"],
@@ -382,6 +422,7 @@ def journal(db, trip_id: int):
     ):
         items.append(
             {
+                "id": r["id"],
                 "type": "loan_repayment",
                 "title": r["description"] or "Возврат займа",
                 "amount_minor": r["amount_minor"],
@@ -499,8 +540,15 @@ class Handler(BaseHTTPRequestHandler):
                     (trip_id, name, members_count, stamp, stamp),
                 )
                 return self.send_json({"id": cur.lastrowid}, HTTPStatus.CREATED)
+            if tail == "categories" and self.command == "GET":
+                # Return standard expense categories
+                categories = Expense.get_standard_categories()
+                return self.send_json({"categories": categories}, HTTPStatus.OK)
             if tail == "expenses" and self.command == "POST":
                 body = self.read_json()
+                split_method = body.get("split_method", "equal")
+                if split_method not in ("equal", "per_person", "paid_only"):
+                    raise ValueError("Invalid split_method")
                 stamp = now()
                 cur = db.execute(
                     """
@@ -513,19 +561,55 @@ class Handler(BaseHTTPRequestHandler):
                         parse_money(body["amount"]),
                         body.get("category", "Общее").strip() or "Общее",
                         int(body["paid_by_family_id"]),
-                        body["split_method"],
+                        split_method,
                         stamp,
                         stamp,
                     ),
                 )
                 return self.send_json({"id": cur.lastrowid}, HTTPStatus.CREATED)
+            
+            expense_edit = re.match(r"^expenses/(\d+)$", tail)
+            if expense_edit and self.command == "PUT":
+                expense_id = int(expense_edit.group(1))
+                body = self.read_json()
+                split_method = body.get("split_method", "equal")
+                if split_method not in ("equal", "per_person", "paid_only"):
+                    raise ValueError("Invalid split_method")
+                expense = row_to_dict(
+                    db.execute(
+                        "SELECT * FROM expenses WHERE id = ? AND trip_id = ? AND deleted_at IS NULL",
+                        (expense_id, trip_id),
+                    ).fetchone()
+                )
+                if not expense:
+                    raise LookupError("Expense not found")
+                stamp = now()
+                db.execute(
+                    """
+                    UPDATE expenses
+                    SET description = ?, amount_minor = ?, category = ?, paid_by_family_id = ?, split_method = ?, updated_at = ?
+                    WHERE id = ? AND trip_id = ?
+                    """,
+                    (
+                        body["description"].strip(),
+                        parse_money(body["amount"]),
+                        body.get("category", "Общее").strip() or "Общее",
+                        int(body["paid_by_family_id"]),
+                        split_method,
+                        stamp,
+                        expense_id,
+                        trip_id,
+                    ),
+                )
+                return self.send_json({"ok": True})
+            
             if tail == "transfers" and self.command == "POST":
                 body = self.read_json()
                 stamp = now()
                 cur = db.execute(
                     """
-                    INSERT INTO money_transfers(trip_id, from_family_id, to_family_id, amount_minor, description, transfer_type, created_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                    INSERT INTO money_transfers(trip_id, from_family_id, to_family_id, amount_minor, description, transfer_type, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         trip_id,
@@ -535,9 +619,42 @@ class Handler(BaseHTTPRequestHandler):
                         body.get("description", "").strip(),
                         body["transfer_type"],
                         stamp,
+                        stamp,
                     ),
                 )
                 return self.send_json({"id": cur.lastrowid}, HTTPStatus.CREATED)
+            
+            transfer_edit = re.match(r"^transfers/(\d+)$", tail)
+            if transfer_edit and self.command == "PUT":
+                transfer_id = int(transfer_edit.group(1))
+                body = self.read_json()
+                transfer = row_to_dict(
+                    db.execute(
+                        "SELECT * FROM money_transfers WHERE id = ? AND trip_id = ? AND deleted_at IS NULL",
+                        (transfer_id, trip_id),
+                    ).fetchone()
+                )
+                if not transfer:
+                    raise LookupError("Transfer not found")
+                stamp = now()
+                db.execute(
+                    """
+                    UPDATE money_transfers
+                    SET from_family_id = ?, to_family_id = ?, amount_minor = ?, description = ?, transfer_type = ?, updated_at = ?
+                    WHERE id = ? AND trip_id = ?
+                    """,
+                    (
+                        int(body["from_family_id"]),
+                        int(body["to_family_id"]),
+                        parse_money(body["amount"]),
+                        body.get("description", "").strip(),
+                        body["transfer_type"],
+                        stamp,
+                        transfer_id,
+                        trip_id,
+                    ),
+                )
+                return self.send_json({"ok": True})
             if tail == "loans" and self.command == "GET":
                 loans = [row_to_dict(r) for r in db.execute("SELECT * FROM loans WHERE trip_id = ? AND deleted_at IS NULL ORDER BY id DESC", (trip_id,))]
                 for loan in loans:
@@ -567,6 +684,39 @@ class Handler(BaseHTTPRequestHandler):
                     ),
                 )
                 return self.send_json({"id": cur.lastrowid}, HTTPStatus.CREATED)
+            
+            loan_edit = re.match(r"^loans/(\d+)$", tail)
+            if loan_edit and self.command == "PUT":
+                loan_id = int(loan_edit.group(1))
+                body = self.read_json()
+                loan = row_to_dict(
+                    db.execute(
+                        "SELECT * FROM loans WHERE id = ? AND trip_id = ? AND deleted_at IS NULL",
+                        (loan_id, trip_id),
+                    ).fetchone()
+                )
+                if not loan:
+                    raise LookupError("Loan not found")
+                stamp = now()
+                amount = parse_money(body["amount"])
+                db.execute(
+                    """
+                    UPDATE loans
+                    SET lender_family_id = ?, borrower_family_id = ?, principal_amount_minor = ?, remaining_amount_minor = ?, description = ?, updated_at = ?
+                    WHERE id = ? AND trip_id = ?
+                    """,
+                    (
+                        int(body["lender_family_id"]),
+                        int(body["borrower_family_id"]),
+                        amount,
+                        amount,
+                        body.get("description", "").strip(),
+                        stamp,
+                        loan_id,
+                        trip_id,
+                    ),
+                )
+                return self.send_json({"ok": True})
             if tail == "journal" and self.command == "GET":
                 return self.send_json({"items": journal(db, trip_id)})
 

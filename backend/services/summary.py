@@ -87,16 +87,21 @@ class SummaryService:
             total += expense["amount_minor"]
             
             # Calculate shares based on split method
-            weights = (
-                [1 for _ in fams] 
-                if expense["split_method"] == "equal" 
-                else [f["members_count"] for f in fams]
-            )
-            
-            shares = divide_amount(expense["amount_minor"], weights)
-            
-            for family, share in zip(fams, shares):
-                stats[family["id"]]["expense_share_minor"] += share
+            if expense["split_method"] == "paid_only":
+                # Only the paying family bears the expense
+                if paid_by in stats:
+                    stats[paid_by]["expense_share_minor"] += expense["amount_minor"]
+            else:
+                weights = (
+                    [1 for _ in fams] 
+                    if expense["split_method"] == "equal" 
+                    else [f["members_count"] for f in fams]
+                )
+                
+                shares = divide_amount(expense["amount_minor"], weights)
+                
+                for family, share in zip(fams, shares):
+                    stats[family["id"]]["expense_share_minor"] += share
         
         # Finalize expense balances
         for stat in stats.values():

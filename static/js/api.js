@@ -2,6 +2,8 @@
  * API communication module
  */
 
+import { state } from "./state.js";
+
 /**
  * Make API request
  */
@@ -69,6 +71,13 @@ export function getTripSummary(tripId) {
 }
 
 /**
+ * Get expense categories
+ */
+export function getCategories() {
+  return api(`/api/trips/${state.tripId}/categories`).then(p => p.categories);
+}
+
+/**
  * Get families for trip
  */
 export function getFamilies(tripId) {
@@ -124,6 +133,16 @@ export function deleteExpense(tripId, expenseId) {
 }
 
 /**
+ * Update expense
+ */
+export function updateExpense(tripId, expenseId, data) {
+  return api(`/api/trips/${tripId}/expenses/${expenseId}`, {
+    method: "PUT",
+    body: JSON.stringify(data),
+  });
+}
+
+/**
  * Create transfer
  */
 export function createTransfer(tripId, data) {
@@ -139,6 +158,16 @@ export function createTransfer(tripId, data) {
 export function deleteTransfer(tripId, transferId) {
   return api(`/api/trips/${tripId}/transfers/${transferId}`, {
     method: "DELETE",
+  });
+}
+
+/**
+ * Update transfer
+ */
+export function updateTransfer(tripId, transferId, data) {
+  return api(`/api/trips/${tripId}/transfers/${transferId}`, {
+    method: "PUT",
+    body: JSON.stringify(data),
   });
 }
 
@@ -165,6 +194,16 @@ export function createLoan(tripId, data) {
 export function deleteLoan(tripId, loanId) {
   return api(`/api/trips/${tripId}/loans/${loanId}`, {
     method: "DELETE",
+  });
+}
+
+/**
+ * Update loan
+ */
+export function updateLoan(tripId, loanId, data) {
+  return api(`/api/trips/${tripId}/loans/${loanId}`, {
+    method: "PUT",
+    body: JSON.stringify(data),
   });
 }
 

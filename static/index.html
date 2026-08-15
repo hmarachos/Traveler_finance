@@ -71,9 +71,34 @@
         <form id="expenseForm" class="entry-form active">
           <label>Описание<input name="description" required placeholder="Ресторан" /></label>
           <label>Сумма<input name="amount" required inputmode="decimal" placeholder="180.00" /></label>
-          <label>Категория<input name="category" placeholder="Еда" /></label>
+          <label>Категория
+            <select name="category" id="categorySelect">
+              <option value="Общее" selected>Общее</option>
+              <option value="Жильё">Жильё (отель/аренда)</option>
+              <option value="Транспорт">Транспорт (билеты/топливо)</option>
+              <option value="Еда">Еда и рестораны</option>
+              <option value="Продукты">Продукты (магазин)</option>
+              <option value="Развлечения">Развлечения и экскурсии</option>
+              <option value="Сувениры">Сувениры и подарки</option>
+              <option value="Здоровье">Здоровье и аптека</option>
+              <option value="Связь">Связь и интернет</option>
+              <option value="Страховка">Страховка</option>
+              <option value="Парковка">Парковка и штрафы</option>
+              <option value="Туалеты">Туалеты и общественные услуги</option>
+              <option value="Другое">Другое</option>
+            </select>
+          </label>
+          <label id="customCategoryLabel" class="hidden">
+            <input name="custom_category" id="customCategoryInput" placeholder="Введите свою категорию" />
+          </label>
           <label>Кто оплатил<select name="paid_by_family_id" required></select></label>
-          <label>Распределение<select name="split_method"><option value="equal">Поровну между семьями</option><option value="per_person">По количеству людей</option></select></label>
+          <label>Распределение:
+            <div class="split-method-buttons">
+              <label><input type="radio" name="split_method" value="equal" /> Поровну между семьями</label>
+              <label><input type="radio" name="split_method" value="per_person" /> По количеству людей</label>
+              <label><input type="radio" name="split_method" value="paid_only" /> Только оплачивающая семья</label>
+            </div>
+          </label>
           <button class="primary">Добавить расход</button>
         </form>
 
@@ -167,6 +192,81 @@
         <div class="dialog-actions">
           <button value="cancel">Отмена</button>
           <button class="primary" value="default">Подтвердить</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="editExpenseDialog">
+      <form method="dialog" id="editExpenseForm">
+        <h2>Редактировать расход</h2>
+        <input type="hidden" name="expense_id" />
+        <label>Описание<input name="description" required placeholder="Ресторан" /></label>
+        <label>Сумма<input name="amount" required inputmode="decimal" placeholder="180.00" /></label>
+        <label>Категория
+          <select name="category" id="editCategorySelect">
+            <option value="Общее" selected>Общее</option>
+            <option value="Жильё">Жильё (отель/аренда)</option>
+            <option value="Транспорт">Транспорт (билеты/топливо)</option>
+            <option value="Еда">Еда и рестораны</option>
+            <option value="Продукты">Продукты (магазин)</option>
+            <option value="Развлечения">Развлечения и экскурсии</option>
+            <option value="Сувениры">Сувениры и подарки</option>
+            <option value="Здоровье">Здоровье и аптека</option>
+            <option value="Связь">Связь и интернет</option>
+            <option value="Страховка">Страховка</option>
+            <option value="Парковка">Парковка и штрафы</option>
+            <option value="Туалеты">Туалеты и общественные услуги</option>
+            <option value="Другое">Другое</option>
+          </select>
+        </label>
+        <label id="editCustomCategoryLabel" class="hidden">
+          <input name="custom_category" id="editCustomCategoryInput" placeholder="Введите свою категорию" />
+        </label>
+        <label>Кто оплатил<select name="paid_by_family_id" required></select></label>
+        <label>Распределение:
+          <div class="split-method-buttons">
+            <label><input type="radio" name="split_method" value="equal" /> Поровну между семьями</label>
+            <label><input type="radio" name="split_method" value="per_person" /> По количеству людей</label>
+            <label><input type="radio" name="split_method" value="paid_only" /> Только оплачивающая семья</label>
+          </div>
+        </label>
+        <div class="dialog-actions">
+          <button type="button" class="danger" id="deleteExpenseBtn">Удалить</button>
+          <button value="cancel">Отмена</button>
+          <button class="primary" value="default">Сохранить</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="editTransferDialog">
+      <form method="dialog" id="editTransferForm">
+        <h2>Редактировать перевод</h2>
+        <input type="hidden" name="transfer_id" />
+        <label>От кого<select name="from_family_id" required></select></label>
+        <label>Кому<select name="to_family_id" required></select></label>
+        <label>Сумма<input name="amount" required inputmode="decimal" placeholder="200.00" /></label>
+        <label>Тип<select name="transfer_type"><option value="transfer">Обычный перевод</option><option value="advance">Аванс</option></select></label>
+        <label>Комментарий<input name="description" placeholder="Передали наличные" /></label>
+        <div class="dialog-actions">
+          <button type="button" class="danger" id="deleteTransferBtn">Удалить</button>
+          <button value="cancel">Отмена</button>
+          <button class="primary" value="default">Сохранить</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="editLoanDialog">
+      <form method="dialog" id="editLoanForm">
+        <h2>Редактировать заем</h2>
+        <input type="hidden" name="loan_id" />
+        <label>Кто дает<select name="lender_family_id" required></select></label>
+        <label>Кому<select name="borrower_family_id" required></select></label>
+        <label>Сумма<input name="amount" required inputmode="decimal" placeholder="500.00" /></label>
+        <label>Комментарий<input name="description" placeholder="На аренду машины" /></label>
+        <div class="dialog-actions">
+          <button type="button" class="danger" id="deleteLoanBtn">Удалить</button>
+          <button value="cancel">Отмена</button>
+          <button class="primary" value="default">Сохранить</button>
         </div>
       </form>
     </dialog>
