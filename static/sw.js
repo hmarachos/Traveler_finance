@@ -1,8 +1,32 @@
-const CACHE = "traveler-finance-v6";
-const ASSETS = ["/", "/index.html", "/styles.css", "/app.js", "/manifest.json", "/icon.svg", "/favicon.ico"];
+const CACHE = "traveler-finance-v8";
+const ASSETS = [
+  "/",
+  "/index.html",
+  "/styles.css",
+  "/manifest.json",
+  "/icon.svg",
+  "/favicon.ico",
+  "/js/api.js",
+  "/js/app.js",
+  "/js/forms.js",
+  "/js/nav.js",
+  "/js/renderer.js",
+  "/js/state.js",
+  "/js/utils.js",
+];
 
 self.addEventListener("install", (event) => {
+  self.skipWaiting();
   event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(ASSETS)));
+});
+
+self.addEventListener("activate", (event) => {
+  event.waitUntil(
+    caches
+      .keys()
+      .then((keys) => Promise.all(keys.filter((key) => key !== CACHE).map((key) => caches.delete(key))))
+      .then(() => self.clients.claim())
+  );
 });
 
 self.addEventListener("fetch", (event) => {

@@ -53,6 +53,26 @@ export function formPayload(form) {
 }
 
 /**
+ * Keep two family selects from pointing to the same family.
+ */
+export function keepFamilySelectsDifferent(form, firstName, secondName, changedName = firstName) {
+  if (!form?.elements[firstName] || !form?.elements[secondName]) return true;
+
+  const first = form.elements[firstName];
+  const second = form.elements[secondName];
+  if (!first.value || !second.value || first.value !== second.value) return true;
+
+  const source = changedName === secondName ? second : first;
+  const target = changedName === secondName ? first : second;
+  const replacement = [...target.options].find((option) => option.value !== source.value);
+
+  if (!replacement) return false;
+
+  target.value = replacement.value;
+  return first.value !== second.value;
+}
+
+/**
  * Get label for transaction type
  */
 export function getTransactionLabel(type) {

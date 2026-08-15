@@ -8,6 +8,7 @@ import {
   qsa,
   toast,
   formPayload,
+  keepFamilySelectsDifferent,
 } from "./utils.js";
 import { syncSelectElements } from "./renderer.js";
 import {
@@ -116,6 +117,10 @@ export function wireFormHandlers(onDataChange) {
   qs("#transferForm").addEventListener("submit", async (event) => {
     event.preventDefault();
     const form = event.currentTarget;
+    if (!keepFamilySelectsDifferent(form, "from_family_id", "to_family_id", "from_family_id")) {
+      toast("Добавьте минимум две семьи для перевода");
+      return;
+    }
     try {
       await createTransfer(state.tripId, formPayload(form));
       form.reset();
@@ -130,6 +135,10 @@ export function wireFormHandlers(onDataChange) {
   qs("#loanForm").addEventListener("submit", async (event) => {
     event.preventDefault();
     const form = event.currentTarget;
+    if (!keepFamilySelectsDifferent(form, "lender_family_id", "borrower_family_id", "lender_family_id")) {
+      toast("Добавьте минимум две семьи для займа");
+      return;
+    }
     try {
       await createLoan(state.tripId, formPayload(form));
       form.reset();
@@ -177,6 +186,10 @@ export function wireFormHandlers(onDataChange) {
     event.preventDefault();
     const form = event.currentTarget;
     const transferId = form.elements.transfer_id.value;
+    if (!keepFamilySelectsDifferent(form, "from_family_id", "to_family_id", "from_family_id")) {
+      toast("Для перевода нужны две разные семьи");
+      return;
+    }
     try {
       await updateTransfer(state.tripId, transferId, formPayload(form));
       qs("#editTransferDialog").close();
@@ -193,6 +206,10 @@ export function wireFormHandlers(onDataChange) {
     event.preventDefault();
     const form = event.currentTarget;
     const loanId = form.elements.loan_id.value;
+    if (!keepFamilySelectsDifferent(form, "lender_family_id", "borrower_family_id", "lender_family_id")) {
+      toast("Для займа нужны две разные семьи");
+      return;
+    }
     try {
       await updateLoan(state.tripId, loanId, formPayload(form));
       qs("#editLoanDialog").close();
@@ -209,6 +226,16 @@ export function wireFormHandlers(onDataChange) {
  * Wire form interactions and delete buttons
  */
 export function wireInteractions(onDataChange) {
+  document.body.addEventListener("change", (event) => {
+    const select = event.target.closest("select[name$='_family_id']");
+    if (!select) return;
+
+    syncFamilySelectPair(select, "#transferForm", "from_family_id", "to_family_id");
+    syncFamilySelectPair(select, "#loanForm", "lender_family_id", "borrower_family_id");
+    syncFamilySelectPair(select, "#editTransferForm", "from_family_id", "to_family_id");
+    syncFamilySelectPair(select, "#editLoanForm", "lender_family_id", "borrower_family_id");
+  });
+
   // Setup edit category handling
   function setupEditCategoryHandling() {
     const categorySelect = document.getElementById('editCategorySelect');
@@ -633,6 +660,13 @@ export function wireInteractions(onDataChange) {
       toast(error.message);
     }
   });
+}
+
+function syncFamilySelectPair(select, formSelector, firstName, secondName) {
+  const form = qs(formSelector);
+  if (!form?.contains(select)) return;
+
+  keepFamilySelectsDifferent(form, firstName, secondName, select.name);
 }
 
 /**

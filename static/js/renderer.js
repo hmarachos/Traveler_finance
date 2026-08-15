@@ -9,6 +9,7 @@ import {
   money,
   signedClass,
   familiesOptions,
+  keepFamilySelectsDifferent,
   emptyState,
   listItem,
   getTransactionLabel,
@@ -52,8 +53,8 @@ export function renderSummary() {
     familyCardsEl.innerHTML = familyStats
       .map((stat) => {
         const balance = stat.expense_balance_minor;
-        const transferBalance = stat.transfers_received_minor - stat.transfers_sent_minor;
-        const advanceBalance = stat.advances_received_minor - stat.advances_sent_minor;
+        const transferBalance = stat.transfers_sent_minor - stat.transfers_received_minor;
+        const advanceBalance = stat.advances_sent_minor - stat.advances_received_minor;
         const loanBalance = stat.loan_receivable_minor - stat.loan_payable_minor;
         const totalBalance = balance + transferBalance + advanceBalance + loanBalance;
 
@@ -272,7 +273,16 @@ export function syncSelectElements() {
     selects.forEach((select) => {
       select.innerHTML = familiesOptions(state.families, select.value);
     });
+    syncFamilyPair("#transferForm", "from_family_id", "to_family_id");
+    syncFamilyPair("#loanForm", "lender_family_id", "borrower_family_id");
+    syncFamilyPair("#editTransferForm", "from_family_id", "to_family_id");
+    syncFamilyPair("#editLoanForm", "lender_family_id", "borrower_family_id");
   }
+}
+
+function syncFamilyPair(formSelector, firstName, secondName) {
+  const form = qs(formSelector);
+  if (form) keepFamilySelectsDifferent(form, firstName, secondName, secondName);
 }
 
 /**
@@ -329,8 +339,8 @@ export function renderBalanceOverview(familyStats, currency) {
   // Calculate net balance for each family
   const balances = familyStats.map((stat) => {
     const expenseBalance = stat.expense_balance_minor;
-    const transferBalance = stat.transfers_received_minor - stat.transfers_sent_minor;
-    const advanceBalance = stat.advances_received_minor - stat.advances_sent_minor;
+    const transferBalance = stat.transfers_sent_minor - stat.transfers_received_minor;
+    const advanceBalance = stat.advances_sent_minor - stat.advances_received_minor;
     const loanBalance = stat.loan_receivable_minor - stat.loan_payable_minor;
     const netBalance = expenseBalance + transferBalance + advanceBalance + loanBalance;
 
