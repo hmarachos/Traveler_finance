@@ -720,8 +720,12 @@ class Handler(BaseHTTPRequestHandler):
                 try:
                     # Check if created_by_user_id column exists
                     columns = {row[1] for row in db.execute("PRAGMA table_info(expenses)")}
+                    print(f"DEBUG: Expense columns: {columns}")
+                    print(f"DEBUG: created_by_user_id in columns: {'created_by_user_id' in columns}")
+                    print(f"DEBUG: current_user: {current_user}")
                     if "created_by_user_id" in columns:
                         # Insert with created_by_user_id
+                        print(f"DEBUG: Inserting WITH created_by_user_id={current_user['id']}")
                         db.execute(
                             """
                             INSERT INTO expenses(trip_id, description, amount_minor, category, paid_by_family_id, split_method, created_by_user_id, created_at, updated_at)
@@ -741,6 +745,7 @@ class Handler(BaseHTTPRequestHandler):
                         )
                     else:
                         # Insert without created_by_user_id if column doesn't exist
+                        print(f"DEBUG: Inserting WITHOUT created_by_user_id")
                         db.execute(
                             """
                             INSERT INTO expenses(trip_id, description, amount_minor, category, paid_by_family_id, split_method, created_at, updated_at)
