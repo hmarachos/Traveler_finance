@@ -542,6 +542,9 @@ class Handler(BaseHTTPRequestHandler):
         except LookupError as exc:
             self.send_json({"error": str(exc)}, HTTPStatus.NOT_FOUND)
         except Exception as exc:
+            import traceback
+            print(f"ERROR: {exc}")
+            print(traceback.format_exc())
             self.send_json({"error": "Internal server error", "detail": str(exc)}, HTTPStatus.INTERNAL_SERVER_ERROR)
 
     def read_json(self):
