@@ -444,9 +444,13 @@ def journal(db, trip_id: int):
         for r in db.execute("SELECT id, username FROM users")
     }
     for r in db.execute("SELECT * FROM expenses WHERE trip_id = ? AND deleted_at IS NULL", (trip_id,)):
-        created_by_user_id = r["created_by_user_id"] if "created_by_user_id" in r.keys() else None
-        author = users.get(created_by_user_id) if created_by_user_id else None
-        author = author or "Система"
+        # Handle both cases: column exists or doesn't exist
+        created_by_user_id = None
+        try:
+            created_by_user_id = r["created_by_user_id"]
+        except IndexError:
+            pass
+        author = users.get(created_by_user_id) if created_by_user_id else "Система"
         items.append(
             {
                 "id": r["id"],
@@ -459,9 +463,12 @@ def journal(db, trip_id: int):
             }
         )
     for r in db.execute("SELECT * FROM money_transfers WHERE trip_id = ? AND deleted_at IS NULL", (trip_id,)):
-        created_by_user_id = r["created_by_user_id"] if "created_by_user_id" in r.keys() else None
-        author = users.get(created_by_user_id) if created_by_user_id else None
-        author = author or "Система"
+        created_by_user_id = None
+        try:
+            created_by_user_id = r["created_by_user_id"]
+        except IndexError:
+            pass
+        author = users.get(created_by_user_id) if created_by_user_id else "Система"
         items.append(
             {
                 "id": r["id"],
@@ -474,9 +481,12 @@ def journal(db, trip_id: int):
             }
         )
     for r in db.execute("SELECT * FROM loans WHERE trip_id = ? AND deleted_at IS NULL", (trip_id,)):
-        created_by_user_id = r["created_by_user_id"] if "created_by_user_id" in r.keys() else None
-        author = users.get(created_by_user_id) if created_by_user_id else None
-        author = author or "Система"
+        created_by_user_id = None
+        try:
+            created_by_user_id = r["created_by_user_id"]
+        except IndexError:
+            pass
+        author = users.get(created_by_user_id) if created_by_user_id else "Система"
         items.append(
             {
                 "id": r["id"],
@@ -497,9 +507,12 @@ def journal(db, trip_id: int):
         """,
         (trip_id,),
     ):
-        created_by_user_id = r["created_by_user_id"] if "created_by_user_id" in r.keys() else None
-        author = users.get(created_by_user_id) if created_by_user_id else None
-        author = author or "Система"
+        created_by_user_id = None
+        try:
+            created_by_user_id = r["created_by_user_id"]
+        except IndexError:
+            pass
+        author = users.get(created_by_user_id) if created_by_user_id else "Система"
         items.append(
             {
                 "id": r["id"],
@@ -707,8 +720,8 @@ class Handler(BaseHTTPRequestHandler):
                 try:
                     db.execute(
                         """
-                        INSERT INTO expenses(trip_id, description, amount_minor, category, paid_by_family_id, split_method, created_by_user_id, created_at, updated_at)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        INSERT INTO expenses(trip_id, description, amount_minor, category, paid_by_family_id, split_method, created_at, updated_at)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                         """,
                         (
                             trip_id,
@@ -717,7 +730,6 @@ class Handler(BaseHTTPRequestHandler):
                             body.get("category", "Общее").strip() or "Общее",
                             int(body["paid_by_family_id"]),
                             split_method,
-                            current_user["id"],
                             stamp,
                             stamp,
                         ),
