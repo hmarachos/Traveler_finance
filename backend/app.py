@@ -704,25 +704,31 @@ class Handler(BaseHTTPRequestHandler):
                 if split_method not in ("equal", "per_person", "paid_only"):
                     raise ValueError("Invalid split_method")
                 stamp = now()
-                db.execute(
-                    """
-                    INSERT INTO expenses(trip_id, description, amount_minor, category, paid_by_family_id, split_method, created_by_user_id, created_at, updated_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """,
-                    (
-                        trip_id,
-                        body["description"].strip(),
-                        parse_money(body["amount"]),
-                        body.get("category", "Общее").strip() or "Общее",
-                        int(body["paid_by_family_id"]),
-                        split_method,
-                        current_user["id"],
-                        stamp,
-                        stamp,
-                    ),
-                )
-                expense_id = db.execute("SELECT last_insert_rowid()").fetchone()[0]
-                return self.send_json({"id": expense_id}, HTTPStatus.CREATED)
+                try:
+                    db.execute(
+                        """
+                        INSERT INTO expenses(trip_id, description, amount_minor, category, paid_by_family_id, split_method, created_by_user_id, created_at, updated_at)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        (
+                            trip_id,
+                            body["description"].strip(),
+                            parse_money(body["amount"]),
+                            body.get("category", "Общее").strip() or "Общее",
+                            int(body["paid_by_family_id"]),
+                            split_method,
+                            current_user["id"],
+                            stamp,
+                            stamp,
+                        ),
+                    )
+                    expense_id = db.execute("SELECT last_insert_rowid()").fetchone()[0]
+                    return self.send_json({"id": expense_id}, HTTPStatus.CREATED)
+                except Exception as e:
+                    import traceback
+                    print(f"Error creating expense: {e}")
+                    print(traceback.format_exc())
+                    raise
             
             expense_edit = re.match(r"^expenses/(\d+)$", tail)
             if expense_edit and self.command == "PUT":
