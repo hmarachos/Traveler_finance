@@ -718,22 +718,45 @@ class Handler(BaseHTTPRequestHandler):
                     raise ValueError("Invalid split_method")
                 stamp = now()
                 try:
-                    db.execute(
-                        """
-                        INSERT INTO expenses(trip_id, description, amount_minor, category, paid_by_family_id, split_method, created_at, updated_at)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                        """,
-                        (
-                            trip_id,
-                            body["description"].strip(),
-                            parse_money(body["amount"]),
-                            body.get("category", "Общее").strip() or "Общее",
-                            int(body["paid_by_family_id"]),
-                            split_method,
-                            stamp,
-                            stamp,
-                        ),
-                    )
+                    # Check if created_by_user_id column exists
+                    columns = {row[1] for row in db.execute("PRAGMA table_info(expenses)")}
+                    if "created_by_user_id" in columns:
+                        # Insert with created_by_user_id
+                        db.execute(
+                            """
+                            INSERT INTO expenses(trip_id, description, amount_minor, category, paid_by_family_id, split_method, created_by_user_id, created_at, updated_at)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            """,
+                            (
+                                trip_id,
+                                body["description"].strip(),
+                                parse_money(body["amount"]),
+                                body.get("category", "Общее").strip() or "Общее",
+                                int(body["paid_by_family_id"]),
+                                split_method,
+                                current_user["id"],
+                                stamp,
+                                stamp,
+                            ),
+                        )
+                    else:
+                        # Insert without created_by_user_id if column doesn't exist
+                        db.execute(
+                            """
+                            INSERT INTO expenses(trip_id, description, amount_minor, category, paid_by_family_id, split_method, created_at, updated_at)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                            """,
+                            (
+                                trip_id,
+                                body["description"].strip(),
+                                parse_money(body["amount"]),
+                                body.get("category", "Общее").strip() or "Общее",
+                                int(body["paid_by_family_id"]),
+                                split_method,
+                                stamp,
+                                stamp,
+                            ),
+                        )
                     expense_id = db.execute("SELECT last_insert_rowid()").fetchone()[0]
                     return self.send_json({"id": expense_id}, HTTPStatus.CREATED)
                 except Exception as e:
