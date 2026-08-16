@@ -23,4 +23,4 @@ EXPOSE 8080
 VOLUME ["/app/data"]
 
 # Запустим приложение
-CMD ["python3", "backend/app_refactored.py"]
+CMD ["python3", "backend/app.py"]
