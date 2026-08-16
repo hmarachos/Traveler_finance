@@ -15,6 +15,8 @@ import {
   createTrip,
   updateTrip,
   deleteTrip,
+  addTripUser,
+  removeTripUser,
   createFamily,
   updateFamily,
   deleteFamily,
@@ -72,6 +74,19 @@ export function wireFormHandlers(onDataChange) {
       form.elements.members_count.value = 1;
       await onDataChange();
       toast("Семья добавлена");
+    } catch (error) {
+      toast(error.message);
+    }
+  });
+
+  qs("#tripUserForm")?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const form = event.currentTarget;
+    try {
+      await addTripUser(state.tripId, formPayload(form));
+      form.reset();
+      await onDataChange();
+      toast("Пользователь добавлен");
     } catch (error) {
       toast(error.message);
     }
@@ -558,6 +573,20 @@ export function wireInteractions(onDataChange) {
       deleteFamily(state.tripId, family.id)
         .then(onDataChange)
         .then(() => toast("Семья удалена"))
+        .catch((error) => toast(error.message));
+      return;
+    }
+
+    const removeTripUserButton = event.target.closest("[data-remove-trip-user]");
+    if (removeTripUserButton) {
+      const user = state.tripUsers.find(
+        (item) => String(item.id) === String(removeTripUserButton.dataset.removeTripUser)
+      );
+      if (!user || !confirm(`Удалить доступ для "${user.username}"?`)) return;
+
+      removeTripUser(state.tripId, user.id)
+        .then(onDataChange)
+        .then(() => toast("Доступ удален"))
         .catch((error) => toast(error.message));
       return;
     }

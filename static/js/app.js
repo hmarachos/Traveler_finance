@@ -15,11 +15,100 @@ import { wireFormHandlers, wireInteractions } from "./forms.js";
 import { wireTabNavigation } from "./nav.js";
 import { toast } from "./utils.js";
 import {
+  getAuthStatus,
+  login,
+  register,
+  logout,
   getTrips,
+  getTripUsers,
   getTripSummary,
   getLoans,
   getJournal,
 } from "./api.js";
+
+let handlersWired = false;
+let authMode = "login";
+
+function setAuthView(isAuthenticated, user = null, usersCount = 0) {
+  const authView = document.querySelector("#authView");
+  const appMain = document.querySelector("#appMain");
+  const authTitle = document.querySelector("#authTitle");
+  const authSubmit = document.querySelector("#authSubmit");
+  const authHint = document.querySelector("#authHint");
+  const authModeSwitch = document.querySelector("#authModeSwitch");
+  const userName = document.querySelector("#currentUserName");
+
+  updateState({ user });
+  authView?.classList.toggle("hidden", isAuthenticated);
+  appMain?.classList.toggle("hidden", !isAuthenticated);
+
+  if (userName && user) {
+    userName.textContent = user.username;
+  }
+
+  const isFirstUser = usersCount === 0;
+  if (isFirstUser) {
+    authMode = "register";
+  }
+
+  authModeSwitch?.classList.toggle("hidden", isFirstUser);
+  authModeSwitch?.querySelectorAll("[data-auth-mode]").forEach((button) => {
+    button.classList.toggle("active", button.dataset.authMode === authMode);
+  });
+
+  const isRegister = authMode === "register";
+  if (authTitle) authTitle.textContent = isRegister ? "Регистрация" : "Вход";
+  if (authSubmit) authSubmit.textContent = isRegister ? "Создать аккаунт" : "Войти";
+  if (authHint) {
+    authHint.textContent = isFirstUser
+      ? "Первый пользователь получит существующие путешествия."
+      : isRegister
+        ? "Создайте отдельный аккаунт для своих путешествий."
+        : "Введите имя пользователя и пароль.";
+  }
+}
+
+function wireAuth(onAuthenticated) {
+  const form = document.querySelector("#authForm");
+  const logoutButton = document.querySelector("#logoutBtn");
+  const authModeSwitch = document.querySelector("#authModeSwitch");
+
+  authModeSwitch?.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-auth-mode]");
+    if (!button) return;
+
+    authMode = button.dataset.authMode;
+    getAuthStatus()
+      .then((status) => setAuthView(false, null, status.users_count))
+      .catch((error) => toast(error.message));
+  });
+
+  form?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const payload = Object.fromEntries(new FormData(form).entries());
+    const status = await getAuthStatus();
+    try {
+      const shouldRegister = status.users_count === 0 || authMode === "register";
+      const result = shouldRegister ? await register(payload) : await login(payload);
+      form.reset();
+      setAuthView(true, result.user, status.users_count || 1);
+      await onAuthenticated();
+      toast(shouldRegister ? "Аккаунт создан" : "Вы вошли");
+    } catch (error) {
+      toast(error.message);
+    }
+  });
+
+  logoutButton?.addEventListener("click", async () => {
+    try {
+      await logout();
+    } finally {
+      localStorage.removeItem("travelerFinanceTripId");
+      updateState({ tripId: null, trip: null, trips: [], families: [], summary: null, user: null });
+      setAuthView(false, null, Math.max(1, (await getAuthStatus()).users_count || 1));
+    }
+  });
+}
 
 /**
  * Load all trips and ensure current trip is selected
@@ -29,7 +118,16 @@ async function loadTrips() {
   updateState({ trips });
 
   if (!state.trips.length) {
-    throw new Error("Нет доступных путешествий");
+    localStorage.removeItem("travelerFinanceTripId");
+    updateState({ tripId: null, trip: null, summary: null, families: [] });
+    syncTripControls();
+    document.querySelectorAll(".tab").forEach((button) =>
+      button.classList.toggle("active", button.dataset.view === "settings")
+    );
+    document.querySelectorAll(".view").forEach((view) =>
+      view.classList.toggle("active", view.id === "settings")
+    );
+    return;
   }
 
   if (!state.tripId || !state.trips.some((trip) => trip.id === state.tripId)) {
@@ -45,8 +143,11 @@ async function loadTrips() {
 async function loadSummary() {
   if (!state.tripId) return;
 
-  const summary = await getTripSummary(state.tripId);
-  updateState({ summary });
+  const [summary, tripUsers] = await Promise.all([
+    getTripSummary(state.tripId),
+    getTripUsers(state.tripId),
+  ]);
+  updateState({ summary, tripUsers });
 
   renderSummary();
 }
@@ -75,18 +176,35 @@ async function loadJournalView() {
  * Refresh all data
  */
 async function refreshAll() {
-  await loadTrips();
-  await loadSummary();
+  try {
+    await loadTrips();
+    await loadSummary();
 
-  const activeView = document.querySelector(".view.active")?.id;
+    const activeView = document.querySelector(".view.active")?.id;
 
-  if (activeView === "loans") {
-    await loadLoansView();
+    if (activeView === "loans") {
+      await loadLoansView();
+    }
+
+    if (activeView === "journal") {
+      await loadJournalView();
+    }
+  } catch (error) {
+    if (error.status === 401) {
+      const status = await getAuthStatus();
+      setAuthView(false, null, status.users_count);
+      return;
+    }
+    throw error;
   }
+}
 
-  if (activeView === "journal") {
-    await loadJournalView();
-  }
+function wireAppHandlers() {
+  if (handlersWired) return;
+  wireTabNavigation(loadLoansView, loadJournalView);
+  wireFormHandlers(refreshAll);
+  wireInteractions(refreshAll);
+  handlersWired = true;
 }
 
 /**
@@ -94,12 +212,19 @@ async function refreshAll() {
  */
 async function init() {
   try {
-    // Wire event handlers
-    wireTabNavigation(loadLoansView, loadJournalView);
-    wireFormHandlers(refreshAll);
-    wireInteractions(refreshAll);
+    wireAuth(async () => {
+      wireAppHandlers();
+      await refreshAll();
+    });
 
-    // Load initial data
+    const auth = await getAuthStatus();
+    setAuthView(auth.authenticated, auth.user, auth.users_count);
+
+    if (!auth.authenticated) {
+      return;
+    }
+
+    wireAppHandlers();
     await refreshAll();
 
     // Register service worker for PWA

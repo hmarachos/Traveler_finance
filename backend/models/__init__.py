@@ -5,6 +5,7 @@ from .family import Family
 from .expense import Expense
 from .money_transfer import MoneyTransfer
 from .loan import Loan
+from .auth import Auth
 
 __all__ = [
     "connect",
@@ -16,4 +17,5 @@ __all__ = [
     "Expense",
     "MoneyTransfer",
     "Loan",
+    "Auth",
 ]

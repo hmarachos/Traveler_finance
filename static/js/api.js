@@ -10,16 +10,41 @@ import { state } from "./state.js";
 export async function api(path, options = {}) {
   const response = await fetch(path, {
     headers: { "Content-Type": "application/json" },
+    credentials: "same-origin",
     ...options,
   });
   
   const payload = await response.json();
   
   if (!response.ok) {
-    throw new Error(payload.error || "Ошибка запроса");
+    const error = new Error(payload.error || "Ошибка запроса");
+    error.status = response.status;
+    throw error;
   }
   
   return payload;
+}
+
+export function getAuthStatus() {
+  return api("/api/auth/status");
+}
+
+export function login(data) {
+  return api("/api/auth/login", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export function register(data) {
+  return api("/api/auth/register", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export function logout() {
+  return api("/api/auth/logout", { method: "POST" });
 }
 
 /**
@@ -61,6 +86,21 @@ export function updateTrip(tripId, data) {
  */
 export function deleteTrip(tripId) {
   return api(`/api/trips/${tripId}`, { method: "DELETE" });
+}
+
+export function getTripUsers(tripId) {
+  return api(`/api/trips/${tripId}/users`).then(p => p.users);
+}
+
+export function addTripUser(tripId, data) {
+  return api(`/api/trips/${tripId}/users`, {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export function removeTripUser(tripId, userId) {
+  return api(`/api/trips/${tripId}/users/${userId}`, { method: "DELETE" });
 }
 
 /**

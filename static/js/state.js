@@ -4,8 +4,10 @@
 
 export const state = {
   tripId: Number(localStorage.getItem("travelerFinanceTripId")) || null,
+  user: null,
   trip: null,
   trips: [],
+  tripUsers: [],
   families: [],
   summary: null,
   journal: [],
@@ -28,5 +30,6 @@ export function updateState(updates) {
 export function clearTripState() {
   state.trip = null;
   state.families = [];
+  state.tripUsers = [];
   state.summary = null;
 }

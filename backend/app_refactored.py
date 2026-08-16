@@ -12,7 +12,7 @@ import re
 import sys
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from models import migrate, Trip, Family, Expense, MoneyTransfer, Loan
+from models import migrate, Trip, Family, Expense, MoneyTransfer, Loan, Auth
 from services import SummaryService, JournalService
 from utils import parse_money, validate_trip_payload, validate_family_payload
 
@@ -71,12 +71,14 @@ class TravelerFinanceHandler(BaseHTTPRequestHandler):
             return {}
         return json.loads(self.rfile.read(length).decode("utf-8"))
     
-    def send_json(self, payload: dict, status=HTTPStatus.OK, head_only=False):
+    def send_json(self, payload: dict, status=HTTPStatus.OK, head_only=False, headers=None):
         """Send JSON response."""
         body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
+        for name, value in (headers or {}).items():
+            self.send_header(name, value)
         self.end_headers()
         
         if not head_only:
@@ -84,16 +86,48 @@ class TravelerFinanceHandler(BaseHTTPRequestHandler):
     
     def api(self, path: str, query: dict, head_only=False):
         """Handle API requests."""
+        if path == "/api/auth/status" and self.command == "GET":
+            user = Auth.user_from_cookie(self.headers.get("Cookie"))
+            return self.send_json({
+                "authenticated": bool(user),
+                "user": user,
+                "users_count": Auth.users_count(),
+            })
+
+        if path == "/api/auth/register" and self.command == "POST":
+            body = self.read_json()
+            user = Auth.register(body.get("username", ""), body.get("password", ""))
+            token = Auth.create_session(user["id"])
+            return self.send_json(
+                {"user": user},
+                HTTPStatus.CREATED,
+                headers={"Set-Cookie": Auth.session_cookie(token)},
+            )
+
+        if path == "/api/auth/login" and self.command == "POST":
+            body = self.read_json()
+            user = Auth.login(body.get("username", ""), body.get("password", ""))
+            token = Auth.create_session(user["id"])
+            return self.send_json({"user": user}, headers={"Set-Cookie": Auth.session_cookie(token)})
+
+        if path == "/api/auth/logout" and self.command == "POST":
+            Auth.logout(self.headers.get("Cookie"))
+            return self.send_json({"ok": True}, headers={"Set-Cookie": Auth.clear_cookie()})
+
+        current_user = Auth.user_from_cookie(self.headers.get("Cookie"))
+        if not current_user:
+            return self.send_json({"error": "Требуется вход"}, HTTPStatus.UNAUTHORIZED)
+
         # Trips list
         if path == "/api/trips" and self.command == "GET":
-            trips = Trip.get_all()
+            trips = Trip.get_all_for_user(current_user["id"])
             return self.send_json({"trips": trips})
         
         # Create trip
         if path == "/api/trips" and self.command == "POST":
             body = self.read_json()
             name, currency, access_code = validate_trip_payload(body)
-            trip_id = Trip.create(name, currency, access_code)
+            trip_id = Trip.create(name, currency, access_code, current_user["id"])
             return self.send_json({"id": trip_id}, HTTPStatus.CREATED)
         
         # Parse trip ID from path
@@ -104,24 +138,41 @@ class TravelerFinanceHandler(BaseHTTPRequestHandler):
         trip_id = int(match.group(1))
         tail = match.group(2) or ""
         
-        # Verify trip exists
-        Trip.get_by_id(trip_id)
+        # Verify trip exists and belongs to current user
+        Trip.get_for_user(trip_id, current_user["id"])
         
         # Get trip details
         if tail == "" and self.command == "GET":
-            trip = Trip.get_by_id(trip_id)
+            trip = Trip.get_for_user(trip_id, current_user["id"])
             return self.send_json({"trip": trip})
         
         # Update trip
         if tail == "" and self.command == "PUT":
             body = self.read_json()
             name, currency, access_code = validate_trip_payload(body)
-            Trip.update(trip_id, name, currency, access_code)
+            Trip.update(trip_id, name, currency, access_code, current_user["id"])
             return self.send_json({"ok": True})
         
         # Delete trip
         if tail == "" and self.command == "DELETE":
-            Trip.soft_delete(trip_id)
+            Trip.require_owner(trip_id, current_user["id"])
+            Trip.soft_delete(trip_id, current_user["id"])
+            return self.send_json({"ok": True})
+
+        # Trip users
+        if tail == "users" and self.command == "GET":
+            return self.send_json({"users": Trip.users(trip_id)})
+
+        if tail == "users" and self.command == "POST":
+            Trip.require_owner(trip_id, current_user["id"])
+            body = self.read_json()
+            user = Trip.add_user(trip_id, body.get("username", ""), body.get("role", "member"))
+            return self.send_json({"user": user}, HTTPStatus.CREATED)
+
+        trip_user_delete = re.match(r"^users/(\d+)$", tail)
+        if trip_user_delete and self.command == "DELETE":
+            Trip.require_owner(trip_id, current_user["id"])
+            Trip.remove_user(trip_id, int(trip_user_delete.group(1)))
             return self.send_json({"ok": True})
         
         # Trip summary

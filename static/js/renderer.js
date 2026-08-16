@@ -314,6 +314,7 @@ export function syncTripControls() {
   
   // Render trips list on settings page
   renderTripsList();
+  renderTripUsers();
 }
 
 /**
@@ -330,7 +331,7 @@ export function renderTripsList() {
             <div class="list-item ${state.tripId === trip.id ? "active" : ""}">
               <div>
                 <strong>${trip.name}</strong>
-                <p class="meta">${trip.currency} · ${trip.access_code}</p>
+                <p class="meta">${trip.currency}</p>
               </div>
               <button class="secondary" data-switch-trip="${trip.id}">Открыть</button>
             </div>
@@ -338,6 +339,30 @@ export function renderTripsList() {
           .join("")
       : emptyState("Путешествий пока нет");
   }
+}
+
+export function renderTripUsers() {
+  const list = qs("#tripUsersList");
+  if (!list) return;
+
+  const currentUserId = state.user?.id;
+  list.innerHTML = state.tripUsers?.length
+    ? state.tripUsers
+        .map((user) => `
+          <div class="list-item family-row">
+            <div>
+              <strong>${user.username}</strong>
+              <p class="meta">${user.role === "owner" ? "Владелец" : "Участник"}</p>
+            </div>
+            ${
+              user.role === "owner" || user.id === currentUserId
+                ? ""
+                : `<button class="danger" data-remove-trip-user="${user.id}">Удалить</button>`
+            }
+          </div>
+        `)
+        .join("")
+    : emptyState("Пользователей пока нет");
 }
 
 /**

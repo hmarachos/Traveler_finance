@@ -43,6 +43,7 @@ def migrate():
             """
             CREATE TABLE IF NOT EXISTS trips (
               id INTEGER PRIMARY KEY AUTOINCREMENT,
+              owner_user_id INTEGER REFERENCES users(id),
               name TEXT NOT NULL,
               currency TEXT NOT NULL DEFAULT 'EUR',
               access_code TEXT NOT NULL UNIQUE,
@@ -109,10 +110,78 @@ def migrate():
               created_at TEXT NOT NULL,
               description TEXT
             );
+
+            CREATE TABLE IF NOT EXISTS users (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              username TEXT NOT NULL UNIQUE,
+              password_hash TEXT NOT NULL,
+              created_at TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS sessions (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              token_hash TEXT NOT NULL UNIQUE,
+              user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+              created_at TEXT NOT NULL,
+              expires_at TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS trip_users (
+              trip_id INTEGER NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
+              user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+              role TEXT NOT NULL CHECK (role IN ('owner', 'member')),
+              created_at TEXT NOT NULL,
+              PRIMARY KEY (trip_id, user_id)
+            );
             """
         )
+        ensure_column(db, "trips", "owner_user_id", "INTEGER REFERENCES users(id)")
         ensure_column(db, "trips", "deleted_at", "TEXT")
+        ensure_column(db, "money_transfers", "updated_at", "TEXT")
+        ensure_valid_split_method(db)
+        ensure_trip_users(db)
         seed(db)
+
+
+def ensure_valid_split_method(db: sqlite3.Connection):
+    """Allow all currently supported split methods."""
+    row = db.execute(
+        "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'expenses'"
+    ).fetchone()
+    if not row or "paid_only" in (row["sql"] or ""):
+        return
+
+    db.execute("ALTER TABLE expenses RENAME TO expenses_old")
+    db.execute("""
+        CREATE TABLE expenses (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          trip_id INTEGER NOT NULL REFERENCES trips(id),
+          description TEXT NOT NULL,
+          amount_minor INTEGER NOT NULL CHECK (amount_minor > 0),
+          category TEXT NOT NULL DEFAULT 'Общее',
+          paid_by_family_id INTEGER NOT NULL REFERENCES families(id),
+          split_method TEXT NOT NULL,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          deleted_at TEXT
+        )
+    """)
+    db.execute("INSERT INTO expenses SELECT * FROM expenses_old")
+    db.execute("DROP TABLE expenses_old")
+
+
+def ensure_trip_users(db: sqlite3.Connection):
+    """Backfill trip membership from existing owner_user_id values."""
+    stamp = now()
+    db.execute(
+        """
+        INSERT OR IGNORE INTO trip_users(trip_id, user_id, role, created_at)
+        SELECT id, owner_user_id, 'owner', ?
+        FROM trips
+        WHERE owner_user_id IS NOT NULL
+        """,
+        (stamp,),
+    )
 
 
 def seed(db: sqlite3.Connection):
@@ -122,8 +191,8 @@ def seed(db: sqlite3.Connection):
         return
     stamp = now()
     cur = db.execute(
-        "INSERT INTO trips(name, currency, access_code, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
-        ("Италия 2026", "EUR", "IT26X7", stamp, stamp),
+        "INSERT INTO trips(owner_user_id, name, currency, access_code, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
+        (None, "Италия 2026", "EUR", "IT26X7", stamp, stamp),
     )
     trip_id = cur.lastrowid
     for name, members in [("Ивановы", 4), ("Петровы", 3), ("Сидоровы", 2)]:

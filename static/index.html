@@ -10,15 +10,32 @@
     <title>Traveler Finance</title>
   </head>
   <body>
-    <main class="app">
+    <section id="authView" class="auth-screen">
+      <form id="authForm" class="auth-card">
+        <p class="eyebrow">Traveler Finance</p>
+        <h1 id="authTitle">Вход</h1>
+        <p id="authHint" class="meta">Введите имя пользователя и пароль.</p>
+        <div id="authModeSwitch" class="auth-mode-switch">
+          <button type="button" class="active" data-auth-mode="login">Войти</button>
+          <button type="button" data-auth-mode="register">Регистрация</button>
+        </div>
+        <label>Имя пользователя<input name="username" required autocomplete="username" placeholder="alex или иван" /></label>
+        <label>Пароль<input name="password" type="password" required autocomplete="current-password" placeholder="Минимум 6 символов" /></label>
+        <button id="authSubmit" class="primary">Войти</button>
+      </form>
+    </section>
+
+    <main id="appMain" class="app hidden">
       <header class="topbar">
         <div>
           <p class="eyebrow">Путешествие</p>
           <h1 id="tripName">Traveler Finance</h1>
         </div>
         <div class="top-actions">
+          <span id="currentUserName" class="user-badge"></span>
           <select id="tripSelect" title="Выбрать путешествие" aria-label="Выбрать путешествие"></select>
           <button class="icon-button" id="refreshBtn" title="Обновить" aria-label="Обновить">↻</button>
+          <button class="icon-button" id="logoutBtn" title="Выйти" aria-label="Выйти">⎋</button>
         </div>
       </header>
 
@@ -154,6 +171,19 @@
 
         <h2>Все путешествия</h2>
         <div id="tripsList" class="list"></div>
+
+        <h2>Доступ</h2>
+        <form id="tripUserForm" class="inline-form">
+          <label>Пользователь<input name="username" required placeholder="username" /></label>
+          <label>Роль
+            <select name="role">
+              <option value="member">Участник</option>
+              <option value="owner">Владелец</option>
+            </select>
+          </label>
+          <button class="primary">Добавить</button>
+        </form>
+        <div id="tripUsersList" class="list"></div>
 
         <h2>Новое путешествие</h2>
         <form id="tripCreateForm" class="settings-form">

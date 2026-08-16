@@ -17,7 +17,7 @@ services:
       - ./backend:/app/backend:ro
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/api/trips"]
+      test: ["CMD", "curl", "-f", "http://localhost:8080/api/auth/status"]
       interval: 30s
       timeout: 10s
       retries: 3

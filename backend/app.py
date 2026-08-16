@@ -9,8 +9,10 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
+from models.auth import Auth
 from models.expense import Expense
 from models.loan import Loan
+from models.trip import Trip
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -62,6 +64,7 @@ def migrate():
             """
             CREATE TABLE IF NOT EXISTS trips (
               id INTEGER PRIMARY KEY AUTOINCREMENT,
+              owner_user_id INTEGER REFERENCES users(id),
               name TEXT NOT NULL,
               currency TEXT NOT NULL DEFAULT 'EUR',
               access_code TEXT NOT NULL UNIQUE,
@@ -129,11 +132,36 @@ def migrate():
               created_at TEXT NOT NULL,
               description TEXT
             );
+
+            CREATE TABLE IF NOT EXISTS users (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              username TEXT NOT NULL UNIQUE,
+              password_hash TEXT NOT NULL,
+              created_at TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS sessions (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              token_hash TEXT NOT NULL UNIQUE,
+              user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+              created_at TEXT NOT NULL,
+              expires_at TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS trip_users (
+              trip_id INTEGER NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
+              user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+              role TEXT NOT NULL CHECK (role IN ('owner', 'member')),
+              created_at TEXT NOT NULL,
+              PRIMARY KEY (trip_id, user_id)
+            );
             """
         )
+        ensure_column(db, "trips", "owner_user_id", "INTEGER REFERENCES users(id)")
         ensure_column(db, "trips", "deleted_at", "TEXT")
         ensure_column(db, "money_transfers", "updated_at", "TEXT")
         ensure_valid_split_method(db)
+        ensure_trip_users(db)
         seed(db)
 
 
@@ -170,14 +198,27 @@ def ensure_valid_split_method(db: sqlite3.Connection):
         pass  # Table doesn't exist or other error - will be created by migrate()
 
 
+def ensure_trip_users(db: sqlite3.Connection):
+    stamp = now()
+    db.execute(
+        """
+        INSERT OR IGNORE INTO trip_users(trip_id, user_id, role, created_at)
+        SELECT id, owner_user_id, 'owner', ?
+        FROM trips
+        WHERE owner_user_id IS NOT NULL
+        """,
+        (stamp,),
+    )
+
+
 def seed(db: sqlite3.Connection):
     count = db.execute("SELECT COUNT(*) AS c FROM trips WHERE deleted_at IS NULL").fetchone()["c"]
     if count:
         return
     stamp = now()
     cur = db.execute(
-        "INSERT INTO trips(name, currency, access_code, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
-        ("Италия 2026", "EUR", "IT26X7", stamp, stamp),
+        "INSERT INTO trips(owner_user_id, name, currency, access_code, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
+        (None, "Италия 2026", "EUR", "IT26X7", stamp, stamp),
     )
     trip_id = cur.lastrowid
     for name, members in [("Ивановы", 4), ("Петровы", 3), ("Сидоровы", 2)]:
@@ -187,8 +228,22 @@ def seed(db: sqlite3.Connection):
         )
 
 
-def get_trip(db, trip_id: int):
-    trip = row_to_dict(db.execute("SELECT * FROM trips WHERE id = ? AND deleted_at IS NULL", (trip_id,)).fetchone())
+def get_trip(db, trip_id: int, user_id: int | None = None):
+    if user_id is None:
+        trip = row_to_dict(db.execute("SELECT * FROM trips WHERE id = ? AND deleted_at IS NULL", (trip_id,)).fetchone())
+    else:
+        trip = row_to_dict(
+            db.execute(
+                """
+                SELECT DISTINCT t.*
+                FROM trips t
+                LEFT JOIN trip_users tu ON tu.trip_id = t.id
+                WHERE t.id = ? AND t.deleted_at IS NULL
+                  AND (t.owner_user_id = ? OR tu.user_id = ?)
+                """,
+                (trip_id, user_id, user_id),
+            ).fetchone()
+        )
     if not trip:
         raise LookupError("Trip not found")
     return trip
@@ -472,8 +527,50 @@ class Handler(BaseHTTPRequestHandler):
 
     def api(self, path, query, head_only=False):
         with connect() as db:
+            if path == "/api/auth/status" and self.command == "GET":
+                user = Auth.user_from_cookie(self.headers.get("Cookie"))
+                return self.send_json({
+                    "authenticated": bool(user),
+                    "user": user,
+                    "users_count": Auth.users_count(),
+                })
+            if path == "/api/auth/register" and self.command == "POST":
+                body = self.read_json()
+                user = Auth.register(body.get("username", ""), body.get("password", ""))
+                token = Auth.create_session(user["id"])
+                return self.send_json(
+                    {"user": user},
+                    HTTPStatus.CREATED,
+                    headers={"Set-Cookie": Auth.session_cookie(token)},
+                )
+            if path == "/api/auth/login" and self.command == "POST":
+                body = self.read_json()
+                user = Auth.login(body.get("username", ""), body.get("password", ""))
+                token = Auth.create_session(user["id"])
+                return self.send_json({"user": user}, headers={"Set-Cookie": Auth.session_cookie(token)})
+            if path == "/api/auth/logout" and self.command == "POST":
+                Auth.logout(self.headers.get("Cookie"))
+                return self.send_json({"ok": True}, headers={"Set-Cookie": Auth.clear_cookie()})
+
+            current_user = Auth.user_from_cookie(self.headers.get("Cookie"))
+            if not current_user:
+                return self.send_json({"error": "Требуется вход"}, HTTPStatus.UNAUTHORIZED)
+
             if path == "/api/trips" and self.command == "GET":
-                trips = [row_to_dict(r) for r in db.execute("SELECT * FROM trips WHERE deleted_at IS NULL ORDER BY id")]
+                trips = [
+                    row_to_dict(r)
+                    for r in db.execute(
+                        """
+                        SELECT DISTINCT t.*
+                        FROM trips t
+                        LEFT JOIN trip_users tu ON tu.trip_id = t.id
+                        WHERE t.deleted_at IS NULL
+                          AND (t.owner_user_id = ? OR tu.user_id = ?)
+                        ORDER BY t.id
+                        """,
+                        (current_user["id"], current_user["id"]),
+                    )
+                ]
                 return self.send_json({"trips": trips})
             if path == "/api/trips" and self.command == "POST":
                 body = self.read_json()
@@ -481,8 +578,12 @@ class Handler(BaseHTTPRequestHandler):
                 name, currency, access_code = validate_trip_payload(body)
                 try:
                     cur = db.execute(
-                        "INSERT INTO trips(name, currency, access_code, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
-                        (name, currency, access_code, stamp, stamp),
+                        "INSERT INTO trips(owner_user_id, name, currency, access_code, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
+                        (current_user["id"], name, currency, access_code, stamp, stamp),
+                    )
+                    db.execute(
+                        "INSERT INTO trip_users(trip_id, user_id, role, created_at) VALUES (?, ?, 'owner', ?)",
+                        (cur.lastrowid, current_user["id"], stamp),
                     )
                 except sqlite3.IntegrityError:
                     raise ValueError("Access code is already used by another trip")
@@ -493,10 +594,10 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send_json({"error": "Not found"}, HTTPStatus.NOT_FOUND)
             trip_id = int(match.group(1))
             tail = match.group(2) or ""
-            get_trip(db, trip_id)
+            get_trip(db, trip_id, current_user["id"])
 
             if tail == "" and self.command == "GET":
-                return self.send_json({"trip": get_trip(db, trip_id)})
+                return self.send_json({"trip": get_trip(db, trip_id, current_user["id"])})
             if tail == "" and self.command == "PUT":
                 body = self.read_json()
                 name, currency, access_code = validate_trip_payload(body)
@@ -506,21 +607,45 @@ class Handler(BaseHTTPRequestHandler):
                         UPDATE trips
                         SET name = ?, currency = ?, access_code = ?, updated_at = ?
                         WHERE id = ? AND deleted_at IS NULL
+                          AND (
+                            owner_user_id = ?
+                            OR EXISTS (
+                              SELECT 1 FROM trip_users
+                              WHERE trip_users.trip_id = trips.id AND trip_users.user_id = ?
+                            )
+                          )
                         """,
-                        (name, currency, access_code, now(), trip_id),
+                        (name, currency, access_code, now(), trip_id, current_user["id"], current_user["id"]),
                     )
                 except sqlite3.IntegrityError:
                     raise ValueError("Access code is already used by another trip")
                 return self.send_json({"ok": True})
             if tail == "" and self.command == "DELETE":
-                active_count = db.execute("SELECT COUNT(*) AS c FROM trips WHERE deleted_at IS NULL").fetchone()["c"]
+                Trip.require_owner(trip_id, current_user["id"])
+                active_count = db.execute(
+                    "SELECT COUNT(*) AS c FROM trips WHERE owner_user_id = ? AND deleted_at IS NULL",
+                    (current_user["id"],),
+                ).fetchone()["c"]
                 if active_count <= 1:
                     raise ValueError("At least one trip must remain")
                 stamp = now()
                 db.execute(
-                    "UPDATE trips SET deleted_at = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL",
-                    (stamp, stamp, trip_id),
+                    "UPDATE trips SET deleted_at = ?, updated_at = ? WHERE id = ? AND owner_user_id = ? AND deleted_at IS NULL",
+                    (stamp, stamp, trip_id, current_user["id"]),
                 )
+                return self.send_json({"ok": True})
+
+            if tail == "users" and self.command == "GET":
+                return self.send_json({"users": Trip.users(trip_id)})
+            if tail == "users" and self.command == "POST":
+                Trip.require_owner(trip_id, current_user["id"])
+                body = self.read_json()
+                user = Trip.add_user(trip_id, body.get("username", ""), body.get("role", "member"))
+                return self.send_json({"user": user}, HTTPStatus.CREATED)
+            trip_user_delete = re.match(r"^users/(\d+)$", tail)
+            if trip_user_delete and self.command == "DELETE":
+                Trip.require_owner(trip_id, current_user["id"])
+                Trip.remove_user(trip_id, int(trip_user_delete.group(1)))
                 return self.send_json({"ok": True})
 
             if tail == "summary" and self.command == "GET":
@@ -815,11 +940,13 @@ class Handler(BaseHTTPRequestHandler):
         if not head_only:
             self.wfile.write(target.read_bytes())
 
-    def send_json(self, payload, status=HTTPStatus.OK, head_only=False):
+    def send_json(self, payload, status=HTTPStatus.OK, head_only=False, headers=None):
         body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
+        for name, value in (headers or {}).items():
+            self.send_header(name, value)
         self.end_headers()
         if not head_only:
             self.wfile.write(body)
