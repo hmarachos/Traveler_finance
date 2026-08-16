@@ -11,7 +11,9 @@ ENV PYTHONUNBUFFERED=1 \
 # Скопируем файлы приложения
 COPY backend/ /app/backend/
 COPY static/ /app/static/
-COPY data/ /app/data/
+
+# Создаем директорию для данных
+RUN mkdir -p /app/data
 
 # Установим зависимости (их нет, но лучше быть готовым)
 RUN pip install --no-cache-dir --upgrade pip
