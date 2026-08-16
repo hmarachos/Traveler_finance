@@ -180,24 +180,28 @@ def ensure_valid_split_method(db: sqlite3.Connection):
     # Get current CHECK constraint
     try:
         result = db.execute("PRAGMA table_info(expenses)").fetchall()
-        # Just recreate table without CHECK constraint
-        db.execute("ALTER TABLE expenses RENAME TO expenses_old")
-        db.execute("""
-            CREATE TABLE expenses (
-              id INTEGER PRIMARY KEY AUTOINCREMENT,
-              trip_id INTEGER NOT NULL REFERENCES trips(id),
-              description TEXT NOT NULL,
-              amount_minor INTEGER NOT NULL CHECK (amount_minor > 0),
-              category TEXT NOT NULL DEFAULT 'Общее',
-              paid_by_family_id INTEGER NOT NULL REFERENCES families(id),
-              split_method TEXT NOT NULL,
-              created_at TEXT NOT NULL,
-              updated_at TEXT NOT NULL,
-              deleted_at TEXT
-            )
-        """)
-        db.execute("INSERT INTO expenses SELECT id, trip_id, description, amount_minor, category, paid_by_family_id, COALESCE(split_method, 'equal'), created_at, updated_at, deleted_at FROM expenses_old")
-        db.execute("DROP TABLE expenses_old")
+        columns_in_old = [row[1] for row in result]
+        
+        # Only recreate if created_by_user_id doesn't exist
+        if 'created_by_user_id' not in columns_in_old:
+            db.execute("ALTER TABLE expenses RENAME TO expenses_old")
+            db.execute("""
+                CREATE TABLE expenses (
+                  id INTEGER PRIMARY KEY AUTOINCREMENT,
+                  trip_id INTEGER NOT NULL REFERENCES trips(id),
+                  description TEXT NOT NULL,
+                  amount_minor INTEGER NOT NULL CHECK (amount_minor > 0),
+                  category TEXT NOT NULL DEFAULT 'Общее',
+                  paid_by_family_id INTEGER NOT NULL REFERENCES families(id),
+                  split_method TEXT NOT NULL,
+                  created_at TEXT NOT NULL,
+                  updated_at TEXT NOT NULL,
+                  deleted_at TEXT,
+                  created_by_user_id INTEGER REFERENCES users(id)
+                )
+            """)
+            db.execute("INSERT INTO expenses SELECT id, trip_id, description, amount_minor, category, paid_by_family_id, COALESCE(split_method, 'equal'), created_at, updated_at, deleted_at, NULL FROM expenses_old")
+            db.execute("DROP TABLE expenses_old")
     except sqlite3.OperationalError:
         pass  # Table doesn't exist or other error - will be created by migrate()
 
