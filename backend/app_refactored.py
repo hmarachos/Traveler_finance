@@ -220,6 +220,7 @@ class TravelerFinanceHandler(BaseHTTPRequestHandler):
                 body.get("category", "Общее").strip() or "Общее",
                 int(body["paid_by_family_id"]),
                 split_method,
+                current_user["id"],
             )
             return self.send_json({"id": expense_id}, HTTPStatus.CREATED)
         
@@ -240,6 +241,7 @@ class TravelerFinanceHandler(BaseHTTPRequestHandler):
                 parse_money(body["amount"]),
                 body.get("description", "").strip(),
                 body["transfer_type"],
+                current_user["id"],
             )
             return self.send_json({"id": transfer_id}, HTTPStatus.CREATED)
         
@@ -264,6 +266,7 @@ class TravelerFinanceHandler(BaseHTTPRequestHandler):
                 int(body["borrower_family_id"]),
                 parse_money(body["amount"]),
                 body.get("description", "").strip(),
+                current_user["id"],
             )
             return self.send_json({"id": loan_id}, HTTPStatus.CREATED)
         

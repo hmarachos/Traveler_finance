@@ -7,7 +7,7 @@ class Loan:
     
     @staticmethod
     def create(trip_id: int, lender_family_id: int, borrower_family_id: int, 
-               principal_amount_minor: int, description: str):
+               principal_amount_minor: int, description: str, user_id: int = None):
         """Create or net a loan for a family pair and return affected loan ID."""
         from .database import now
         
@@ -42,8 +42,8 @@ class Loan:
                 repayment = min(principal_amount_minor, existing["remaining_amount_minor"])
                 if repayment > 0:
                     db.execute(
-                        "INSERT INTO loan_repayments(loan_id, amount_minor, created_at, description) VALUES (?, ?, ?, ?)",
-                        (loan_id, repayment, stamp, description or "Встречный заем"),
+                        "INSERT INTO loan_repayments(loan_id, amount_minor, created_at, description, created_by_user_id) VALUES (?, ?, ?, ?, ?)",
+                        (loan_id, repayment, stamp, description or "Встречный заем", user_id),
                     )
                 
                 remaining = existing["remaining_amount_minor"] - repayment
@@ -62,10 +62,10 @@ class Loan:
             cur = db.execute(
                 """INSERT INTO loans(trip_id, lender_family_id, borrower_family_id, 
                                      principal_amount_minor, remaining_amount_minor, 
-                                     description, created_at, updated_at, status)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active')""",
+                                     description, created_by_user_id, created_at, updated_at, status)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'active')""",
                 (trip_id, lender_family_id, borrower_family_id, 
-                 principal_amount_minor, principal_amount_minor, description, stamp, stamp),
+                 principal_amount_minor, principal_amount_minor, description, user_id, stamp, stamp),
             )
             return cur.lastrowid
 
@@ -132,7 +132,7 @@ class Loan:
             )
     
     @staticmethod
-    def add_repayment(loan_id: int, trip_id: int, amount_minor: int, description: str):
+    def add_repayment(loan_id: int, trip_id: int, amount_minor: int, description: str, user_id: int = None):
         """Add loan repayment and update remaining amount."""
         from .database import now
         
@@ -153,8 +153,8 @@ class Loan:
             status = "repaid" if remaining == 0 else "partially_repaid"
             
             db.execute(
-                "INSERT INTO loan_repayments(loan_id, amount_minor, created_at, description) VALUES (?, ?, ?, ?)",
-                (loan_id, amount_minor, stamp, description),
+                "INSERT INTO loan_repayments(loan_id, amount_minor, created_at, description, created_by_user_id) VALUES (?, ?, ?, ?, ?)",
+                (loan_id, amount_minor, stamp, description, user_id),
             )
             
             db.execute(

@@ -30,7 +30,7 @@ class Expense:
     
     @staticmethod
     def create(trip_id: int, description: str, amount_minor: int, category: str, 
-               paid_by_family_id: int, split_method: str):
+               paid_by_family_id: int, split_method: str, user_id: int = None):
         """Create new expense and return its ID."""
         from .database import now
         
@@ -41,9 +41,9 @@ class Expense:
             stamp = now()
             cur = db.execute(
                 """INSERT INTO expenses(trip_id, description, amount_minor, category, 
-                                        paid_by_family_id, split_method, created_at, updated_at)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-                (trip_id, description, amount_minor, category, paid_by_family_id, split_method, stamp, stamp),
+                                        paid_by_family_id, split_method, created_by_user_id, created_at, updated_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (trip_id, description, amount_minor, category, paid_by_family_id, split_method, user_id, stamp, stamp),
             )
             return cur.lastrowid
     

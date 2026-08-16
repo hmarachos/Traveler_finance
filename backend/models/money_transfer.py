@@ -7,7 +7,7 @@ class MoneyTransfer:
     
     @staticmethod
     def create(trip_id: int, from_family_id: int, to_family_id: int, 
-               amount_minor: int, description: str, transfer_type: str):
+               amount_minor: int, description: str, transfer_type: str, user_id: int = None):
         """Create new money transfer and return its ID."""
         from .database import now
         
@@ -15,9 +15,9 @@ class MoneyTransfer:
             stamp = now()
             cur = db.execute(
                 """INSERT INTO money_transfers(trip_id, from_family_id, to_family_id, 
-                                               amount_minor, description, transfer_type, created_at)
-                   VALUES (?, ?, ?, ?, ?, ?, ?)""",
-                (trip_id, from_family_id, to_family_id, amount_minor, description, transfer_type, stamp),
+                                               amount_minor, description, transfer_type, created_by_user_id, created_at, updated_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (trip_id, from_family_id, to_family_id, amount_minor, description, transfer_type, user_id, stamp, stamp),
             )
             return cur.lastrowid
     

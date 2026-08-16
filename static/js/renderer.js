@@ -258,7 +258,7 @@ export function renderJournal(items) {
                 <span>${money(entry.amount_minor, currency)}</span>
               </p>
               <p class="meta">
-                ${new Date(entry.created_at).toLocaleDateString("ru-RU")} · ${entry.meta}${
+                ${new Date(entry.created_at).toLocaleDateString("ru-RU")} · ${entry.author || 'Система'} · ${entry.meta}${
                   entry.remaining_amount_minor !== undefined
                     ? ` · остаток ${money(entry.remaining_amount_minor, currency)}`
                     : ""

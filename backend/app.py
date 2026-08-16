@@ -160,6 +160,10 @@ def migrate():
         ensure_column(db, "trips", "owner_user_id", "INTEGER REFERENCES users(id)")
         ensure_column(db, "trips", "deleted_at", "TEXT")
         ensure_column(db, "money_transfers", "updated_at", "TEXT")
+        ensure_column(db, "expenses", "created_by_user_id", "INTEGER REFERENCES users(id)")
+        ensure_column(db, "money_transfers", "created_by_user_id", "INTEGER REFERENCES users(id)")
+        ensure_column(db, "loans", "created_by_user_id", "INTEGER REFERENCES users(id)")
+        ensure_column(db, "loan_repayments", "created_by_user_id", "INTEGER REFERENCES users(id)")
         ensure_valid_split_method(db)
         ensure_trip_users(db)
         seed(db)
@@ -434,7 +438,15 @@ def expense_settlements(stats):
 def journal(db, trip_id: int):
     items = []
     fams = {f["id"]: f["name"] for f in families(db, trip_id)}
+    # Get all users for author names
+    users = {
+        r["id"]: r["username"]
+        for r in db.execute("SELECT id, username FROM users")
+    }
     for r in db.execute("SELECT * FROM expenses WHERE trip_id = ? AND deleted_at IS NULL", (trip_id,)):
+        created_by_user_id = r["created_by_user_id"] if "created_by_user_id" in r.keys() else None
+        author = users.get(created_by_user_id) if created_by_user_id else None
+        author = author or "Система"
         items.append(
             {
                 "id": r["id"],
@@ -442,10 +454,14 @@ def journal(db, trip_id: int):
                 "title": r["description"],
                 "amount_minor": r["amount_minor"],
                 "created_at": r["created_at"],
-                "meta": f"Оплатили: {fams.get(r['paid_by_family_id'], 'Unknown')} · {r['category']} · {r['split_method']}",
+                "author": author,
+                "meta": f"Оплатили: {fams.get(r['paid_by_family_id'], 'Unknown')} · {r['category']}",
             }
         )
     for r in db.execute("SELECT * FROM money_transfers WHERE trip_id = ? AND deleted_at IS NULL", (trip_id,)):
+        created_by_user_id = r["created_by_user_id"] if "created_by_user_id" in r.keys() else None
+        author = users.get(created_by_user_id) if created_by_user_id else None
+        author = author or "Система"
         items.append(
             {
                 "id": r["id"],
@@ -453,10 +469,14 @@ def journal(db, trip_id: int):
                 "title": r["description"] or ("Аванс" if r["transfer_type"] == "advance" else "Перевод"),
                 "amount_minor": r["amount_minor"],
                 "created_at": r["created_at"],
+                "author": author,
                 "meta": f"{fams.get(r['from_family_id'], 'Unknown')} → {fams.get(r['to_family_id'], 'Unknown')}",
             }
         )
     for r in db.execute("SELECT * FROM loans WHERE trip_id = ? AND deleted_at IS NULL", (trip_id,)):
+        created_by_user_id = r["created_by_user_id"] if "created_by_user_id" in r.keys() else None
+        author = users.get(created_by_user_id) if created_by_user_id else None
+        author = author or "Система"
         items.append(
             {
                 "id": r["id"],
@@ -465,6 +485,7 @@ def journal(db, trip_id: int):
                 "amount_minor": r["principal_amount_minor"],
                 "created_at": r["created_at"],
                 "remaining_amount_minor": r["remaining_amount_minor"],
+                "author": author,
                 "meta": f"{fams.get(r['borrower_family_id'], 'Unknown')} должны {fams.get(r['lender_family_id'], 'Unknown')}",
             }
         )
@@ -476,6 +497,9 @@ def journal(db, trip_id: int):
         """,
         (trip_id,),
     ):
+        created_by_user_id = r["created_by_user_id"] if "created_by_user_id" in r.keys() else None
+        author = users.get(created_by_user_id) if created_by_user_id else None
+        author = author or "Система"
         items.append(
             {
                 "id": r["id"],
@@ -483,6 +507,7 @@ def journal(db, trip_id: int):
                 "title": r["description"] or "Возврат займа",
                 "amount_minor": r["amount_minor"],
                 "created_at": r["created_at"],
+                "author": author,
                 "meta": f"{fams.get(r['borrower_family_id'], 'Unknown')} → {fams.get(r['lender_family_id'], 'Unknown')}",
             }
         )
@@ -676,10 +701,10 @@ class Handler(BaseHTTPRequestHandler):
                 if split_method not in ("equal", "per_person", "paid_only"):
                     raise ValueError("Invalid split_method")
                 stamp = now()
-                cur = db.execute(
+                db.execute(
                     """
-                    INSERT INTO expenses(trip_id, description, amount_minor, category, paid_by_family_id, split_method, created_at, updated_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    INSERT INTO expenses(trip_id, description, amount_minor, category, paid_by_family_id, split_method, created_by_user_id, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         trip_id,
@@ -688,11 +713,13 @@ class Handler(BaseHTTPRequestHandler):
                         body.get("category", "Общее").strip() or "Общее",
                         int(body["paid_by_family_id"]),
                         split_method,
+                        current_user["id"],
                         stamp,
                         stamp,
                     ),
                 )
-                return self.send_json({"id": cur.lastrowid}, HTTPStatus.CREATED)
+                expense_id = db.execute("SELECT last_insert_rowid()").fetchone()[0]
+                return self.send_json({"id": expense_id}, HTTPStatus.CREATED)
             
             expense_edit = re.match(r"^expenses/(\d+)$", tail)
             if expense_edit and self.command == "PUT":
@@ -734,8 +761,8 @@ class Handler(BaseHTTPRequestHandler):
                 stamp = now()
                 cur = db.execute(
                     """
-                    INSERT INTO money_transfers(trip_id, from_family_id, to_family_id, amount_minor, description, transfer_type, created_at, updated_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    INSERT INTO money_transfers(trip_id, from_family_id, to_family_id, amount_minor, description, transfer_type, created_by_user_id, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         trip_id,
@@ -744,6 +771,7 @@ class Handler(BaseHTTPRequestHandler):
                         parse_money(body["amount"]),
                         body.get("description", "").strip(),
                         body["transfer_type"],
+                        current_user["id"],
                         stamp,
                         stamp,
                     ),
@@ -797,6 +825,7 @@ class Handler(BaseHTTPRequestHandler):
                     int(body["borrower_family_id"]),
                     parse_money(body["amount"]),
                     body.get("description", "").strip(),
+                    current_user["id"],
                 )
                 return self.send_json({"id": loan_id}, HTTPStatus.CREATED)
             
@@ -845,8 +874,8 @@ class Handler(BaseHTTPRequestHandler):
                 remaining = loan["remaining_amount_minor"] - amount
                 status = "repaid" if remaining == 0 else "partially_repaid"
                 db.execute(
-                    "INSERT INTO loan_repayments(loan_id, amount_minor, created_at, description) VALUES (?, ?, ?, ?)",
-                    (loan_id, amount, stamp, body.get("description", "").strip()),
+                    "INSERT INTO loan_repayments(loan_id, amount_minor, created_at, description, created_by_user_id) VALUES (?, ?, ?, ?, ?)",
+                    (loan_id, amount, stamp, body.get("description", "").strip(), current_user["id"]),
                 )
                 db.execute(
                     "UPDATE loans SET remaining_amount_minor = ?, status = ?, updated_at = ? WHERE id = ?",
