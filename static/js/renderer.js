@@ -246,10 +246,38 @@ export function renderJournal(items) {
   // Save journal items to state for editing
   updateState({ journal: items });
 
+  // Extract unique categories from expenses
+  const categories = new Set();
+  items.forEach(entry => {
+    if (entry.type === 'expense') {
+      // Extract category from meta (format: "Оплатили: Family · Category · split_method")
+      const metaParts = entry.meta.split(' · ');
+      if (metaParts.length >= 2) {
+        const category = metaParts[1];
+        categories.add(category);
+      }
+    }
+  });
+
+  // Populate category filter
+  const categoryFilter = qs('#categoryFilter');
+  if (categoryFilter && categories.size > 0) {
+    const sortedCategories = Array.from(categories).sort();
+    const filterOptions = sortedCategories
+      .map(cat => `<option value="${cat}">${cat}</option>`)
+      .join('');
+    categoryFilter.innerHTML = '<option value="">Все категории</option>' + filterOptions;
+    
+    // Reset filter when journal updates
+    categoryFilter.value = '';
+  }
+
+  // Render filtered journal
+  const filteredItems = items; // Will be filtered by event listener
   const journalListEl = qs("#journalList");
   if (journalListEl) {
-    journalListEl.innerHTML = items.length
-      ? items
+    journalListEl.innerHTML = filteredItems.length
+      ? filteredItems
           .map(
             (entry) => `
             <article class="timeline-item clickable" data-entry-id="${entry.id}" data-entry-type="${entry.type}">
@@ -446,4 +474,57 @@ export function renderBalanceOverview(familyStats, currency) {
         .join("");
     }
   }
+}
+
+/**
+ * Setup journal category filter
+ */
+export function setupJournalFilter() {
+  const categoryFilter = qs('#categoryFilter');
+  const journalList = qs('#journalList');
+  
+  if (!categoryFilter || !journalList) return;
+  
+  categoryFilter.addEventListener('change', () => {
+    const selectedCategory = categoryFilter.value;
+    const items = state.journal || [];
+    const currency = state.trip?.currency || "EUR";
+    
+    // Filter items
+    const filteredItems = selectedCategory 
+      ? items.filter(entry => {
+          if (entry.type === 'expense') {
+            const metaParts = entry.meta.split(' · ');
+            if (metaParts.length >= 2) {
+              const category = metaParts[1];
+              return category === selectedCategory;
+            }
+          }
+          return false;
+        })
+      : items;
+    
+    // Re-render filtered list
+    journalList.innerHTML = filteredItems.length
+      ? filteredItems
+          .map(
+            (entry) => `
+            <article class="timeline-item clickable" data-entry-id="${entry.id}" data-entry-type="${entry.type}">
+              <p class="line">
+                <span>${getTransactionLabel(entry.type)} · ${entry.title}</span>
+                <span>${money(entry.amount_minor, currency)}</span>
+              </p>
+              <p class="meta">
+                ${new Date(entry.created_at).toLocaleDateString("ru-RU")} · ${entry.author || 'Система'} · ${entry.meta}${
+                  entry.remaining_amount_minor !== undefined
+                    ? ` · остаток ${money(entry.remaining_amount_minor, currency)}`
+                    : ""
+                }
+              </p>
+            </article>
+          `
+          )
+          .join("")
+      : emptyState("Операций с этой категорией нет");
+  });
 }

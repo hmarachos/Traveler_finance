@@ -8,6 +8,7 @@ import {
   renderSummary,
   renderLoans,
   renderJournal,
+  setupJournalFilter,
   syncSelectElements,
   syncTripControls,
 } from "./renderer.js";
@@ -170,6 +171,7 @@ async function loadJournalView() {
 
   const items = await getJournal(state.tripId);
   renderJournal(items);
+  setupJournalFilter();
 }
 
 /**

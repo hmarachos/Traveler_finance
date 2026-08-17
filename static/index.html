@@ -150,6 +150,14 @@
 
       <section id="journal" class="view">
         <h2>Операции</h2>
+        <div id="journalFilter" style="margin-bottom: 16px;">
+          <label style="display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px;">
+            Фильтр по категориям:
+            <select id="categoryFilter" style="flex: 1; min-height: 40px;">
+              <option value="">Все категории</option>
+            </select>
+          </label>
+        </div>
         <div id="journalList" class="timeline"></div>
       </section>
 
