@@ -47,6 +47,13 @@ export function renderSummary() {
     familyCardsEl.innerHTML = familyStats
       .map((stat) => {
         const balance = stat.expense_balance_minor;
+        
+        // Фактическая потрата = оплачено расходов - полученные переводы + отправленные переводы
+        // (если отправили деньги - это тоже потрата, если получили - это вычитается из траты)
+        const transferBalance = stat.transfers_sent_minor - stat.transfers_received_minor;
+        const advanceBalance = stat.advances_sent_minor - stat.advances_received_minor;
+        const actualSpent = stat.expense_paid_minor + transferBalance + advanceBalance;
+        
         const statusClass = balance > 0 ? "positive" : balance < 0 ? "negative" : "";
         const statusText = balance > 0 ? "получит" : balance < 0 ? "отдаст" : "расчет верен";
 
@@ -58,8 +65,8 @@ export function renderSummary() {
             </div>
             <div class="grid-lines">
               <p class="line" style="margin-bottom: 12px; padding-bottom: 12px; border-bottom: 2px solid var(--green);">
-                <span style="font-size: 14px; color: var(--muted);">Потратила</span>
-                <span style="font-size: 24px; font-weight: 700; color: var(--ink);">${money(stat.expense_paid_minor, trip.currency)}</span>
+                <span style="font-size: 14px; color: var(--muted);">Фактическая потрата</span>
+                <span style="font-size: 24px; font-weight: 700; color: var(--ink);">${money(actualSpent, trip.currency)}</span>
               </p>
               <p class="line">
                 <span>Статус расходов</span>
