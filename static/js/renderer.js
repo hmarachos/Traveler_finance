@@ -32,31 +32,23 @@ export function renderSummary() {
   // Header
   qs("#tripName").textContent = trip.name;
 
-  // Hero metrics
+  // Hero metrics - только главные
   qs("#totalExpenses").textContent = money(totals.expenses_minor, trip.currency);
   qs("#totalPaid").textContent = money(totals.paid_minor, trip.currency);
   qs("#familyCount").textContent = totals.families_count;
   qs("#memberCount").textContent = totals.members_count;
 
-  // Additional metrics
-  qs("#loanTotal").textContent = money(totals.loans_principal_minor, trip.currency);
-  qs("#loanOpen").textContent = money(totals.loans_open_minor, trip.currency);
-  qs("#transferTotal").textContent = money(totals.transfers_minor, trip.currency);
-  qs("#advanceTotal").textContent = money(totals.advances_minor, trip.currency);
-
   // Balance Overview (кто кому должен)
   renderBalanceOverview(familyStats, trip.currency);
 
-  // Family cards (only update if element exists)
+  // Family cards - ПЕРЕРАБОТАННЫЕ: только главное
   const familyCardsEl = qs("#familyCards");
   if (familyCardsEl) {
     familyCardsEl.innerHTML = familyStats
       .map((stat) => {
         const balance = stat.expense_balance_minor;
-        const transferBalance = stat.transfers_sent_minor - stat.transfers_received_minor;
-        const advanceBalance = stat.advances_sent_minor - stat.advances_received_minor;
-        const loanBalance = stat.loan_receivable_minor - stat.loan_payable_minor;
-        const totalBalance = balance + transferBalance + advanceBalance + loanBalance;
+        const statusClass = balance > 0 ? "positive" : balance < 0 ? "negative" : "";
+        const statusText = balance > 0 ? "получит" : balance < 0 ? "отдаст" : "расчет верен";
 
         return `
           <article class="card">
@@ -65,39 +57,17 @@ export function renderSummary() {
               <span class="badge">${stat.family.members_count} чел.</span>
             </div>
             <div class="grid-lines">
-              <p class="line">
-                <span>Оплатили расходов</span>
-                <span>${money(stat.expense_paid_minor, trip.currency)}</span>
+              <p class="line" style="margin-bottom: 12px; padding-bottom: 12px; border-bottom: 2px solid var(--green);">
+                <span style="font-size: 14px; color: var(--muted);">Потратила</span>
+                <span style="font-size: 24px; font-weight: 700; color: var(--ink);">${money(stat.expense_paid_minor, trip.currency)}</span>
               </p>
               <p class="line">
-                <span>Расчетная доля</span>
-                <span>${money(stat.expense_share_minor, trip.currency)}</span>
+                <span>Статус расходов</span>
+                <span class="${statusClass}" style="font-weight: 600;">${statusText}</span>
               </p>
               <p class="line">
-                <span>Баланс расходов</span>
-                <span class="${signedClass(balance)}">${money(balance, trip.currency)}</span>
-              </p>
-              ${transferBalance !== 0 ? `<p class="line"><span>Переводы</span><span class="${signedClass(transferBalance)}">${money(transferBalance, trip.currency)}</span></p>` : ''}
-              ${advanceBalance !== 0 ? `<p class="line"><span>Авансы</span><span class="${signedClass(advanceBalance)}">${money(advanceBalance, trip.currency)}</span></p>` : ''}
-              <p class="line">
-                <span>Дали в долг</span>
-                <span>${money(stat.loans_given_minor, trip.currency)}</span>
-              </p>
-              <p class="line">
-                <span>Взяли в долг</span>
-                <span>${money(stat.loans_taken_minor, trip.currency)}</span>
-              </p>
-              <p class="line">
-                <span>Долг к получению</span>
-                <span>${money(stat.loan_receivable_minor, trip.currency)}</span>
-              </p>
-              <p class="line">
-                <span>Долг к возврату</span>
-                <span>${money(stat.loan_payable_minor, trip.currency)}</span>
-              </p>
-              <p class="line" style="border-top: 1px solid var(--line); margin-top: 8px; padding-top: 8px;">
-                <span><strong>Итоговый баланс</strong></span>
-                <span class="${signedClass(totalBalance)}" style="font-weight: bold;">${money(totalBalance, trip.currency)}</span>
+                <span>Размер расчета</span>
+                <span class="${statusClass}" style="font-weight: 600;">${money(Math.abs(balance), trip.currency)}</span>
               </p>
             </div>
           </article>
@@ -106,7 +76,7 @@ export function renderSummary() {
       .join("");
   }
 
-  // Families list (only update if element exists)
+  // Families list
   const familiesListEl = qs("#familiesList");
   if (familiesListEl) {
     familiesListEl.innerHTML = state.families
@@ -139,7 +109,7 @@ export function renderSummary() {
       .join("");
   }
 
-  // Settlements (only update if element exists)
+  // Settlements - ОСТАВЛЕНО (главная аналитика - кто кому должен)
   const settlementsEl = qs("#settlements");
   if (settlementsEl) {
     settlementsEl.innerHTML = settlements.length
@@ -155,7 +125,7 @@ export function renderSummary() {
       : emptyState("По расходам все сбалансировано");
   }
 
-  // Loan obligations (only update if element exists)
+  // Loan obligations - ОСТАВЛЕНО (если займы есть)
   const loanObligationsEl = qs("#loanObligations");
   if (loanObligationsEl) {
     loanObligationsEl.innerHTML = loanObligations.length
