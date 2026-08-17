@@ -119,7 +119,32 @@ export function wireFormHandlers(onDataChange) {
     }
     
     try {
-      await createExpense(state.tripId, formPayload(form));
+      const payload = formPayload(form);
+      
+      // If custom split method, collect weights
+      if (payload.split_method === 'custom') {
+        const weights = {};
+        const weightInputs = document.querySelectorAll('#customSplitWeights input[data-family-id]');
+        let hasWeight = false;
+        
+        weightInputs.forEach(input => {
+          const familyId = input.dataset.familyId;
+          const weight = parseInt(input.value) || 0;
+          if (weight > 0) {
+            hasWeight = true;
+            weights[familyId] = weight;
+          }
+        });
+        
+        if (!hasWeight) {
+          toast('Пожалуйста, укажите хотя бы одну часть больше нуля');
+          return;
+        }
+        
+        payload.custom_split_weights = weights;
+      }
+      
+      await createExpense(state.tripId, payload);
       form.reset();
       await onDataChange();
       toast("Расход добавлен");
@@ -185,8 +210,34 @@ export function wireFormHandlers(onDataChange) {
     event.preventDefault();
     const form = event.currentTarget;
     const expenseId = form.elements.expense_id.value;
+    
     try {
-      await updateExpense(state.tripId, expenseId, formPayload(form));
+      const payload = formPayload(form);
+      
+      // If custom split method, collect weights
+      if (payload.split_method === 'custom') {
+        const weights = {};
+        const weightInputs = document.querySelectorAll('#editCustomSplitWeights input[data-family-id]');
+        let hasWeight = false;
+        
+        weightInputs.forEach(input => {
+          const familyId = input.dataset.familyId;
+          const weight = parseInt(input.value) || 0;
+          if (weight > 0) {
+            hasWeight = true;
+            weights[familyId] = weight;
+          }
+        });
+        
+        if (!hasWeight) {
+          toast('Пожалуйста, укажите хотя бы одну часть больше нуля');
+          return;
+        }
+        
+        payload.custom_split_weights = weights;
+      }
+      
+      await updateExpense(state.tripId, expenseId, payload);
       qs("#editExpenseDialog").close();
       form.reset();
       await onDataChange();
@@ -353,7 +404,13 @@ export function wireInteractions(onDataChange) {
           getFormData: (entry) => {
             const metaParts = entry.meta.split(' · ');
             const category = metaParts.length >= 2 ? metaParts[1].trim() : 'Общее';
-            const splitMethod = metaParts.length >= 3 ? metaParts[2].trim() : 'equal';
+            let splitMethod = metaParts.length >= 3 ? metaParts[2].trim() : 'equal';
+            
+            // Handle "Ручное распределение" text
+            if (splitMethod === 'Ручное распределение') {
+              splitMethod = 'custom';
+            }
+            
             const paidByFamilyName = extractPaidByFamilyName(entry.meta);
             const paidByFamilyId = paidByFamilyName ? findFamilyIdByName(paidByFamilyName) : null;
             
@@ -493,6 +550,17 @@ export function wireInteractions(onDataChange) {
               customCategoryLabel.classList.add('hidden');
               customCategoryInput.required = false;
             }
+          }
+          
+          // Handle custom split method
+          const editCustomSplitContainer = document.getElementById('editCustomSplitContainer');
+          if (formData.split_method === 'custom' && editCustomSplitContainer) {
+            editCustomSplitContainer.classList.remove('hidden');
+            // Get custom_split_weights from entry_full if available
+            const customWeights = entry_full.custom_split_weights || {};
+            renderCustomSplitWeights('editCustomSplitWeights', customWeights);
+          } else if (editCustomSplitContainer) {
+            editCustomSplitContainer.classList.add('hidden');
           }
         }
       }
@@ -749,5 +817,87 @@ function setupCategoryHandling() {
   categorySelect.addEventListener('change', updateCategoryVisibility);
 }
 
+/**
+ * Setup custom split method handling
+ */
+function setupCustomSplitHandling() {
+  const expenseForm = document.getElementById('expenseForm');
+  const editExpenseForm = document.getElementById('editExpenseForm');
+  
+  // Setup for create expense form
+  if (expenseForm) {
+    const splitMethodRadios = expenseForm.querySelectorAll('input[name="split_method"]');
+    const customSplitContainer = document.getElementById('customSplitContainer');
+    
+    splitMethodRadios.forEach(radio => {
+      radio.addEventListener('change', () => {
+        if (radio.value === 'custom' && radio.checked) {
+          customSplitContainer.classList.remove('hidden');
+          renderCustomSplitWeights('customSplitWeights');
+        } else if (radio.checked) {
+          customSplitContainer.classList.add('hidden');
+        }
+      });
+    });
+  }
+  
+  // Setup for edit expense form
+  if (editExpenseForm) {
+    const splitMethodRadios = editExpenseForm.querySelectorAll('input[name="split_method"]');
+    const editCustomSplitContainer = document.getElementById('editCustomSplitContainer');
+    
+    splitMethodRadios.forEach(radio => {
+      radio.addEventListener('change', () => {
+        if (radio.value === 'custom' && radio.checked) {
+          editCustomSplitContainer.classList.remove('hidden');
+          renderCustomSplitWeights('editCustomSplitWeights');
+        } else if (radio.checked) {
+          editCustomSplitContainer.classList.add('hidden');
+        }
+      });
+    });
+  }
+}
+
+/**
+ * Render custom split weight inputs for all families
+ */
+function renderCustomSplitWeights(containerId, existingWeights = {}) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  
+  container.innerHTML = '';
+  
+  if (!state.families || state.families.length === 0) {
+    container.innerHTML = '<p style="color: #666;">Сначала добавьте семьи</p>';
+    return;
+  }
+  
+  state.families.forEach(family => {
+    const weight = existingWeights[family.id] || 1;
+    const div = document.createElement('div');
+    div.style.marginBottom = '8px';
+    div.innerHTML = `
+      <label style="display: flex; align-items: center; gap: 10px;">
+        <span style="flex: 1; font-weight: normal;">${family.name}:</span>
+        <input 
+          type="number" 
+          min="0" 
+          step="1" 
+          value="${weight}"
+          data-family-id="${family.id}"
+          style="width: 80px;"
+          placeholder="0"
+        />
+        <span style="color: #666; font-size: 0.9em;">частей</span>
+      </label>
+    `;
+    container.appendChild(div);
+  });
+}
+
 // Call setup on DOM ready
-document.addEventListener('DOMContentLoaded', setupCategoryHandling);
+document.addEventListener('DOMContentLoaded', () => {
+  setupCategoryHandling();
+  setupCustomSplitHandling();
+});

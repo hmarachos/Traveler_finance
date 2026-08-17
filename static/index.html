@@ -114,8 +114,14 @@
               <label><input type="radio" name="split_method" value="equal" /> Поровну между семьями</label>
               <label><input type="radio" name="split_method" value="per_person" /> По количеству людей</label>
               <label><input type="radio" name="split_method" value="paid_only" /> Только оплачивающая семья</label>
+              <label><input type="radio" name="split_method" value="custom" /> Вручную указать распределение</label>
             </div>
           </label>
+          <div id="customSplitContainer" class="hidden" style="margin-top: 10px; padding: 10px; border: 1px solid #ccc; border-radius: 4px;">
+            <p style="margin-top: 0; font-weight: bold;">Укажите части для каждой семьи:</p>
+            <div id="customSplitWeights"></div>
+            <p style="margin-bottom: 0; font-size: 0.9em; color: #666;">Например: 2, 1, 1 означает, что первая семья получит 2 части из 4</p>
+          </div>
           <button class="primary">Добавить расход</button>
         </form>
 
@@ -258,8 +264,14 @@
             <label><input type="radio" name="split_method" value="equal" /> Поровну между семьями</label>
             <label><input type="radio" name="split_method" value="per_person" /> По количеству людей</label>
             <label><input type="radio" name="split_method" value="paid_only" /> Только оплачивающая семья</label>
+            <label><input type="radio" name="split_method" value="custom" /> Вручную указать распределение</label>
           </div>
         </label>
+        <div id="editCustomSplitContainer" class="hidden" style="margin-top: 10px; padding: 10px; border: 1px solid #ccc; border-radius: 4px;">
+          <p style="margin-top: 0; font-weight: bold;">Укажите части для каждой семьи:</p>
+          <div id="editCustomSplitWeights"></div>
+          <p style="margin-bottom: 0; font-size: 0.9em; color: #666;">Например: 2, 1, 1 означает, что первая семья получит 2 части из 4</p>
+        </div>
         <div class="dialog-actions">
           <button type="button" class="danger" id="deleteExpenseBtn">Удалить</button>
           <button value="cancel">Отмена</button>

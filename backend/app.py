@@ -58,6 +58,15 @@ def divide_amount(amount: int, weights: list[int]) -> list[int]:
     return shares
 
 
+def parse_expense_category(category_value, custom_category_value):
+    """Parse category value, handling 'Другое' case"""
+    category = (category_value or "Общое").strip() or "Общое"
+    if category == "Другое":
+        custom = (custom_category_value or "").strip()
+        return custom if custom else "Общое"
+    return category
+
+
 def migrate():
     with connect() as db:
         db.executescript(
@@ -91,6 +100,7 @@ def migrate():
               category TEXT NOT NULL DEFAULT 'Общее',
               paid_by_family_id INTEGER NOT NULL REFERENCES families(id),
               split_method TEXT NOT NULL,
+              custom_split_weights TEXT,
               created_at TEXT NOT NULL,
               updated_at TEXT NOT NULL,
               deleted_at TEXT
@@ -329,6 +339,32 @@ def compute_summary(db, trip_id: int):
             # Only the paying family bears the expense
             if paid_by in stats:
                 stats[paid_by]["expense_share_minor"] += expense["amount_minor"]
+        elif expense["split_method"] == "custom":
+            # Custom split - use weights from custom_split_weights JSON
+            try:
+                custom_weights_json = expense["custom_split_weights"]
+                if custom_weights_json:
+                    custom_weights = json.loads(custom_weights_json)
+                    # Build weights list in same order as fams
+                    weights = [custom_weights.get(str(f["id"]), 0) for f in fams]
+                    # Only split if there are non-zero weights
+                    if sum(weights) > 0:
+                        shares = divide_amount(expense["amount_minor"], weights)
+                        for family, share in zip(fams, shares):
+                            stats[family["id"]]["expense_share_minor"] += share
+                    else:
+                        # Fallback to paid_only if no weights specified
+                        if paid_by in stats:
+                            stats[paid_by]["expense_share_minor"] += expense["amount_minor"]
+                else:
+                    # Fallback to paid_only if no custom weights
+                    if paid_by in stats:
+                        stats[paid_by]["expense_share_minor"] += expense["amount_minor"]
+            except (json.JSONDecodeError, KeyError, ValueError, TypeError):
+                # Fallback to paid_only on error
+                if paid_by in stats:
+                    stats[paid_by]["expense_share_minor"] += expense["amount_minor"]
+                    stats[paid_by]["expense_share_minor"] += expense["amount_minor"]
         else:
             weights = [1 for _ in fams] if expense["split_method"] == "equal" else [f["members_count"] for f in fams]
             shares = divide_amount(expense["amount_minor"], weights)
@@ -455,17 +491,41 @@ def journal(db, trip_id: int):
         except IndexError:
             pass
         author = users.get(created_by_user_id) if created_by_user_id else "Система"
-        items.append(
-            {
-                "id": r["id"],
-                "type": "expense",
-                "title": r["description"],
-                "amount_minor": r["amount_minor"],
-                "created_at": r["created_at"],
-                "author": author,
-                "meta": f"Оплатили: {fams.get(r['paid_by_family_id'], 'Unknown')} · {r['category']}",
-            }
-        )
+        
+        # Build meta string with split info
+        meta = f"Оплатили: {fams.get(r['paid_by_family_id'], 'Unknown')} · {r['category']}"
+        
+        # Add split method info to meta
+        split_method = r["split_method"]
+        if split_method == 'custom':
+            # For custom split, show brief indication
+            meta += " · Ручное распределение"
+        else:
+            meta += f" · {split_method}"
+        # Get custom_split_weights if available
+        custom_split_weights = None
+        try:
+            custom_split_weights_json = r["custom_split_weights"]
+            if custom_split_weights_json:
+                custom_split_weights = json.loads(custom_split_weights_json)
+        except (json.JSONDecodeError, KeyError, TypeError):
+            pass
+        
+        item = {
+            "id": r["id"],
+            "type": "expense",
+            "title": r["description"],
+            "amount_minor": r["amount_minor"],
+            "created_at": r["created_at"],
+            "author": author,
+            "meta": meta,
+        }
+        
+        # Add custom_split_weights to item if available
+        if custom_split_weights:
+            item["custom_split_weights"] = custom_split_weights
+        
+        items.append(item)
     for r in db.execute("SELECT * FROM money_transfers WHERE trip_id = ? AND deleted_at IS NULL", (trip_id,)):
         created_by_user_id = None
         try:
@@ -718,18 +778,53 @@ class Handler(BaseHTTPRequestHandler):
             if tail == "expenses" and self.command == "POST":
                 body = self.read_json()
                 split_method = body.get("split_method", "equal")
-                if split_method not in ("equal", "per_person", "paid_only"):
+                if split_method not in ("equal", "per_person", "paid_only", "custom"):
                     raise ValueError("Invalid split_method")
+                
+                # Validate and prepare custom_split_weights
+                custom_split_weights = None
+                if split_method == "custom":
+                    weights = body.get("custom_split_weights")
+                    if not weights:
+                        raise ValueError("custom_split_weights required for custom split method")
+                    # Store as JSON string
+                    custom_split_weights = json.dumps(weights) if isinstance(weights, dict) else weights
+                
                 stamp = now()
                 try:
-                    # Check if created_by_user_id column exists
+                    # Check which columns exist
                     columns = {row[1] for row in db.execute("PRAGMA table_info(expenses)")}
                     print(f"DEBUG: Expense columns: {columns}")
-                    print(f"DEBUG: created_by_user_id in columns: {'created_by_user_id' in columns}")
+                    has_created_by = "created_by_user_id" in columns
+                    has_custom_split = "custom_split_weights" in columns
+                    print(f"DEBUG: created_by_user_id in columns: {has_created_by}")
+                    print(f"DEBUG: custom_split_weights in columns: {has_custom_split}")
                     print(f"DEBUG: current_user: {current_user}")
-                    if "created_by_user_id" in columns:
-                        # Insert with created_by_user_id
-                        print(f"DEBUG: Inserting WITH created_by_user_id={current_user['id']}")
+                    
+                    if has_created_by and has_custom_split:
+                        # Insert with both created_by_user_id and custom_split_weights
+                        print(f"DEBUG: Inserting WITH created_by_user_id and custom_split_weights")
+                        db.execute(
+                            """
+                            INSERT INTO expenses(trip_id, description, amount_minor, category, paid_by_family_id, split_method, custom_split_weights, created_by_user_id, created_at, updated_at)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            """,
+                            (
+                                trip_id,
+                                body["description"].strip(),
+                                parse_money(body["amount"]),
+                                parse_expense_category(body.get("category"), body.get("custom_category")),
+                                int(body["paid_by_family_id"]),
+                                split_method,
+                                custom_split_weights,
+                                current_user["id"],
+                                stamp,
+                                stamp,
+                            ),
+                        )
+                    elif has_created_by:
+                        # Insert with created_by_user_id but without custom_split_weights
+                        print(f"DEBUG: Inserting WITH created_by_user_id but WITHOUT custom_split_weights")
                         db.execute(
                             """
                             INSERT INTO expenses(trip_id, description, amount_minor, category, paid_by_family_id, split_method, created_by_user_id, created_at, updated_at)
@@ -739,7 +834,7 @@ class Handler(BaseHTTPRequestHandler):
                                 trip_id,
                                 body["description"].strip(),
                                 parse_money(body["amount"]),
-                                body.get("category", "Общее").strip() or "Общее",
+                                parse_expense_category(body.get("category"), body.get("custom_category")),
                                 int(body["paid_by_family_id"]),
                                 split_method,
                                 current_user["id"],
@@ -747,9 +842,29 @@ class Handler(BaseHTTPRequestHandler):
                                 stamp,
                             ),
                         )
+                    elif has_custom_split:
+                        # Insert without created_by_user_id but with custom_split_weights
+                        print(f"DEBUG: Inserting WITHOUT created_by_user_id but WITH custom_split_weights")
+                        db.execute(
+                            """
+                            INSERT INTO expenses(trip_id, description, amount_minor, category, paid_by_family_id, split_method, custom_split_weights, created_at, updated_at)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            """,
+                            (
+                                trip_id,
+                                body["description"].strip(),
+                                parse_money(body["amount"]),
+                                parse_expense_category(body.get("category"), body.get("custom_category")),
+                                int(body["paid_by_family_id"]),
+                                split_method,
+                                custom_split_weights,
+                                stamp,
+                                stamp,
+                            ),
+                        )
                     else:
-                        # Insert without created_by_user_id if column doesn't exist
-                        print(f"DEBUG: Inserting WITHOUT created_by_user_id")
+                        # Insert without both columns
+                        print(f"DEBUG: Inserting WITHOUT created_by_user_id and custom_split_weights")
                         db.execute(
                             """
                             INSERT INTO expenses(trip_id, description, amount_minor, category, paid_by_family_id, split_method, created_at, updated_at)
@@ -759,7 +874,7 @@ class Handler(BaseHTTPRequestHandler):
                                 trip_id,
                                 body["description"].strip(),
                                 parse_money(body["amount"]),
-                                body.get("category", "Общее").strip() or "Общее",
+                                parse_expense_category(body.get("category"), body.get("custom_category")),
                                 int(body["paid_by_family_id"]),
                                 split_method,
                                 stamp,
@@ -779,8 +894,18 @@ class Handler(BaseHTTPRequestHandler):
                 expense_id = int(expense_edit.group(1))
                 body = self.read_json()
                 split_method = body.get("split_method", "equal")
-                if split_method not in ("equal", "per_person", "paid_only"):
+                if split_method not in ("equal", "per_person", "paid_only", "custom"):
                     raise ValueError("Invalid split_method")
+                
+                # Validate and prepare custom_split_weights
+                custom_split_weights = None
+                if split_method == "custom":
+                    weights = body.get("custom_split_weights")
+                    if not weights:
+                        raise ValueError("custom_split_weights required for custom split method")
+                    # Store as JSON string
+                    custom_split_weights = json.dumps(weights) if isinstance(weights, dict) else weights
+                
                 expense = row_to_dict(
                     db.execute(
                         "SELECT * FROM expenses WHERE id = ? AND trip_id = ? AND deleted_at IS NULL",
@@ -790,18 +915,24 @@ class Handler(BaseHTTPRequestHandler):
                 if not expense:
                     raise LookupError("Expense not found")
                 stamp = now()
-                db.execute(
-                    """
-                    UPDATE expenses
-                    SET description = ?, amount_minor = ?, category = ?, paid_by_family_id = ?, split_method = ?, updated_at = ?
-                    WHERE id = ? AND trip_id = ?
-                    """,
+                # Check if custom_split_weights column exists
+                columns = {row[1] for row in db.execute("PRAGMA table_info(expenses)")}
+                has_custom_split = "custom_split_weights" in columns
+                
+                if has_custom_split:
+                    db.execute(
+                        """
+                        UPDATE expenses
+                        SET description = ?, amount_minor = ?, category = ?, paid_by_family_id = ?, split_method = ?, custom_split_weights = ?, updated_at = ?
+                        WHERE id = ? AND trip_id = ?
+                        """,
                     (
                         body["description"].strip(),
                         parse_money(body["amount"]),
                         body.get("category", "Общее").strip() or "Общее",
                         int(body["paid_by_family_id"]),
                         split_method,
+                        custom_split_weights,
                         stamp,
                         expense_id,
                         trip_id,

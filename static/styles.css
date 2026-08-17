@@ -668,7 +668,7 @@ dialog::backdrop {
 /* Split method buttons */
 .split-method-buttons {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 6px;
   margin-top: 4px;
 }
@@ -686,6 +686,7 @@ dialog::backdrop {
   cursor: pointer;
   transition: all 0.15s ease;
   position: relative;
+  font-size: 12px;
 }
 
 .split-method-buttons label:hover {
