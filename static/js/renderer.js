@@ -55,7 +55,7 @@ export function renderSummary() {
         const actualSpent = stat.expense_paid_minor + transferBalance + advanceBalance;
         
         const statusClass = balance > 0 ? "positive" : balance < 0 ? "negative" : "";
-        const statusText = balance > 0 ? "получит" : balance < 0 ? "отдаст" : "расчет верен";
+        const statusText = balance > 0 ? "получила" : balance < 0 ? "отдала" : "расчет верен";
 
         return `
           <article class="card">
