@@ -41,7 +41,7 @@ export function renderSummary() {
   // Balance Overview (кто кому должен)
   renderBalanceOverview(familyStats, trip.currency);
 
-  // Family cards - ПЕРЕРАБОТАННЫЕ: только главное
+  // Family cards - Minimalist & Informative
   const familyCardsEl = qs("#familyCards");
   if (familyCardsEl) {
     familyCardsEl.innerHTML = familyStats
@@ -49,33 +49,31 @@ export function renderSummary() {
         const balance = stat.expense_balance_minor;
         
         // Фактическая потрата = оплачено расходов - полученные переводы + отправленные переводы
-        // (если отправили деньги - это тоже потрата, если получили - это вычитается из траты)
         const transferBalance = stat.transfers_sent_minor - stat.transfers_received_minor;
         const advanceBalance = stat.advances_sent_minor - stat.advances_received_minor;
         const actualSpent = stat.expense_paid_minor + transferBalance + advanceBalance;
         
-        const statusClass = balance > 0 ? "positive" : balance < 0 ? "negative" : "";
-        const statusText = balance > 0 ? "получил" : balance < 0 ? "отдал" : "расчет верен";
+        let statusBadge = '';
+        if (balance > 0) {
+          statusBadge = `<span class="fam-status-badge positive">🟢 +${money(balance, trip.currency)}</span>`;
+        } else if (balance < 0) {
+          statusBadge = `<span class="fam-status-badge negative">🔴 -${money(Math.abs(balance), trip.currency)}</span>`;
+        } else {
+          statusBadge = `<span class="fam-status-badge neutral">⚪ В балансе</span>`;
+        }
 
         return `
-          <article class="card">
-            <div class="card-title">
-              <strong>${stat.family.name}</strong>
-              <span class="badge">${stat.family.members_count} чел.</span>
+          <article class="family-card">
+            <div class="family-card-header">
+              <div class="family-name-group">
+                <strong class="family-name">${stat.family.name}</strong>
+                <span class="family-members-count">${stat.family.members_count} чел.</span>
+              </div>
+              ${statusBadge}
             </div>
-            <div class="grid-lines">
-              <p class="line" style="margin-bottom: 12px; padding-bottom: 12px; border-bottom: 2px solid var(--green);">
-                <span style="font-size: 14px; color: var(--muted);">Фактическая потрата</span>
-                <span style="font-size: 24px; font-weight: 700; color: var(--ink);">${money(actualSpent, trip.currency)}</span>
-              </p>
-              <p class="line">
-                <span>Статус расходов</span>
-                <span class="${statusClass}" style="font-weight: 600;">${statusText}</span>
-              </p>
-              <p class="line">
-                <span>Размер расчета</span>
-                <span class="${statusClass}" style="font-weight: 600;">${money(Math.abs(balance), trip.currency)}</span>
-              </p>
+            <div class="family-card-body">
+              <div class="spent-label">Фактические траты</div>
+              <div class="spent-value">${money(actualSpent, trip.currency)}</div>
             </div>
           </article>
         `;
@@ -511,10 +509,10 @@ export function renderBalanceOverview(familyStats, currency) {
     if (payments.length === 0) {
       container.innerHTML = `
         <div class="balance-card balanced">
-          <div class="balance-icon">✓</div>
+          <div class="balance-icon-circle">✓</div>
           <div class="balance-text">
             <p class="balance-title">Все расчеты завершены</p>
-            <p class="balance-desc">Никто никому не должен</p>
+            <p class="balance-desc">Расходы между семьями полностью сбалансированы</p>
           </div>
         </div>
       `;
@@ -523,10 +521,12 @@ export function renderBalanceOverview(familyStats, currency) {
         .map(
           (p) => `
         <div class="balance-card payment">
-          <div class="balance-from">${p.from}</div>
-          <div class="balance-arrow">→</div>
-          <div class="balance-to">${p.to}</div>
-          <div class="balance-amount">${money(p.amount, currency)}</div>
+          <div class="balance-flow">
+            <span class="fam-pill from">${p.from}</span>
+            <span class="flow-arrow">➔</span>
+            <span class="fam-pill to">${p.to}</span>
+          </div>
+          <div class="balance-amount-pill">${money(p.amount, currency)}</div>
         </div>
       `
         )

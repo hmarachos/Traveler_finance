@@ -1243,3 +1243,369 @@ dialog::backdrop {
   color: var(--muted);
   opacity: 0.85;
 }
+
+/* Modern Main Page Dashboard Styles */
+
+/* Topbar actions */
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.quick-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 13px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 600;
+  border: 1px solid rgba(34, 97, 95, 0.2);
+  background: rgba(34, 97, 95, 0.08);
+  color: var(--green);
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: none;
+}
+
+.quick-action-btn:hover {
+  background: rgba(34, 97, 95, 0.16);
+  border-color: rgba(34, 97, 95, 0.35);
+  transform: translateY(-1px);
+}
+
+.quick-action-btn.active {
+  background: var(--green);
+  color: #ffffff;
+  border-color: var(--green);
+  box-shadow: 0 4px 12px rgba(34, 97, 95, 0.3);
+}
+
+.quick-action-btn.active:hover {
+  background: #194846;
+  border-color: #194846;
+  box-shadow: 0 6px 16px rgba(34, 97, 95, 0.4);
+}
+
+/* Hero Banner */
+.hero-banner {
+  background: linear-gradient(135deg, #184442 0%, #22615f 100%);
+  color: #ffffff;
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: 0 8px 24px rgba(28, 38, 35, 0.12);
+  margin-bottom: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.hero-main {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.hero-label {
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: rgba(255, 255, 255, 0.75);
+  font-weight: 500;
+}
+
+.hero-amount {
+  font-size: 36px;
+  font-weight: 800;
+  letter-spacing: -1px;
+  margin: 0;
+  color: #ffffff;
+  line-height: 1.1;
+}
+
+.hero-stats {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 16px;
+  background: rgba(255, 255, 255, 0.1);
+  padding: 12px 18px;
+  border-radius: 12px;
+  backdrop-filter: blur(8px);
+  flex-wrap: wrap;
+}
+
+.hero-stat-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.hero-stat-label {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.hero-stat-val {
+  font-size: 16px;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.hero-stat-divider {
+  width: 1px;
+  height: 24px;
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* Metrics Grid */
+.metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.metric-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  box-shadow: 0 2px 6px rgba(28, 38, 35, 0.03);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.metric-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(28, 38, 35, 0.08);
+}
+
+.metric-icon {
+  font-size: 20px;
+  line-height: 1;
+}
+
+.metric-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.metric-label {
+  font-size: 11px;
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.metric-value {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+/* Sections */
+.dash-section {
+  margin-bottom: 28px;
+}
+
+.dash-section-header {
+  margin-bottom: 14px;
+}
+
+.dash-section-header h3 {
+  margin: 0 0 2px;
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.dash-section-sub {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+/* Family Cards Grid */
+.family-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 14px;
+}
+
+.family-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 16px;
+  box-shadow: 0 2px 8px rgba(28, 38, 35, 0.04);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.family-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(28, 38, 35, 0.08);
+}
+
+.family-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(222, 217, 203, 0.6);
+}
+
+.family-name-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.family-name {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.family-members-count {
+  font-size: 11px;
+  background: rgba(24, 33, 31, 0.06);
+  color: var(--muted);
+  padding: 2px 6px;
+  border-radius: 10px;
+  font-weight: 500;
+}
+
+.fam-status-badge {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: 12px;
+  line-height: 1.2;
+}
+
+.fam-status-badge.positive {
+  background: rgba(16, 185, 129, 0.1);
+  color: #059669;
+}
+
+.fam-status-badge.negative {
+  background: rgba(239, 68, 68, 0.1);
+  color: #dc2626;
+}
+
+.fam-status-badge.neutral {
+  background: rgba(107, 114, 128, 0.1);
+  color: #4b5563;
+}
+
+.family-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.spent-label {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.spent-value {
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--ink);
+  letter-spacing: -0.5px;
+}
+
+/* Balance Overview Grid */
+.balance-overview-grid {
+  display: grid;
+  gap: 10px;
+}
+
+.balance-card.payment {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 14px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  box-shadow: 0 2px 6px rgba(28, 38, 35, 0.04);
+}
+
+.balance-flow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+}
+
+.fam-pill {
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.flow-arrow {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.balance-amount-pill {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--green);
+  background: var(--green-soft);
+  padding: 4px 12px;
+  border-radius: 16px;
+}
+
+.balance-card.balanced {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 16px 20px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.balance-icon-circle {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: rgba(16, 185, 129, 0.12);
+  color: #059669;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 16px;
+}
+
+.balance-text .balance-title {
+  margin: 0 0 2px;
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--ink);
+}
+
+.balance-text .balance-desc {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted);
+}

@@ -31,6 +31,17 @@
           <p class="eyebrow">Путешествие</p>
           <h1 id="tripName">Traveler Finance</h1>
         </div>
+        <div class="topbar-actions">
+          <button class="quick-action-btn" data-quick-add="expenseForm">
+            <span>+ Расход</span>
+          </button>
+          <button class="quick-action-btn" data-quick-add="transferForm">
+            <span>+ Перевод</span>
+          </button>
+          <button class="quick-action-btn" data-quick-add="loanForm">
+            <span>+ Долг</span>
+          </button>
+        </div>
       </header>
 
       <nav class="tabs desktop-nav" aria-label="Разделы">
@@ -88,43 +99,90 @@
       </nav>
 
       <section id="dashboard" class="view active">
-        <div class="hero">
-          <div>
-            <span>Общие расходы</span>
-            <strong id="totalExpenses">0 €</strong>
+        <!-- Sleek Hero Banner -->
+        <div class="hero-banner">
+          <div class="hero-main">
+            <span class="hero-label">Общие расходы поездки</span>
+            <h2 id="totalExpenses" class="hero-amount">0 €</h2>
           </div>
-          <div class="hero-grid">
-            <p><b id="totalPaid">0 €</b><span>Оплачено</span></p>
-            <p><b id="familyCount">0</b><span>Семей</span></p>
-            <p><b id="memberCount">0</b><span>Участников</span></p>
+          <div class="hero-stats">
+            <div class="hero-stat-item">
+              <span class="hero-stat-label">Оплачено всего</span>
+              <b id="totalPaid" class="hero-stat-val">0 €</b>
+            </div>
+            <div class="hero-stat-divider"></div>
+            <div class="hero-stat-item">
+              <span class="hero-stat-label">Семей</span>
+              <b id="familyCount" class="hero-stat-val">0</b>
+            </div>
+            <div class="hero-stat-divider"></div>
+            <div class="hero-stat-item">
+              <span class="hero-stat-label">Участников</span>
+              <b id="memberCount" class="hero-stat-val">0</b>
+            </div>
           </div>
         </div>
 
-        <div class="metric-row">
-          <div><span>Займов</span><b id="loanTotal">0 €</b></div>
-          <div><span>Открытый долг</span><b id="loanOpen">0 €</b></div>
-          <div><span>Переводов</span><b id="transferTotal">0 €</b></div>
-          <div><span>Авансов</span><b id="advanceTotal">0 €</b></div>
+        <!-- Metric Cards Grid -->
+        <div class="metrics-grid">
+          <div class="metric-card">
+            <div class="metric-icon">🤝</div>
+            <div class="metric-body">
+              <span class="metric-label">Займы</span>
+              <b id="loanTotal" class="metric-value">0 €</b>
+            </div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-icon">⏳</div>
+            <div class="metric-body">
+              <span class="metric-label">Открытый долг</span>
+              <b id="loanOpen" class="metric-value">0 €</b>
+            </div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-icon">💸</div>
+            <div class="metric-body">
+              <span class="metric-label">Переводы</span>
+              <b id="transferTotal" class="metric-value">0 €</b>
+            </div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-icon">⚡</div>
+            <div class="metric-body">
+              <span class="metric-label">Авансы</span>
+              <b id="advanceTotal" class="metric-value">0 €</b>
+            </div>
+          </div>
         </div>
 
-        <h2 style="margin-top: 24px; margin-bottom: 16px;">⚡ Кто кому должен</h2>
-        <div id="balanceOverview" class="balance-overview"></div>
+        <!-- Section: Settlements -->
+        <div class="dash-section">
+          <div class="dash-section-header">
+            <h3>⚡ Расчеты между семьями</h3>
+            <span class="dash-section-sub">Оптимальная схема взаимных выплат</span>
+          </div>
+          <div id="balanceOverview" class="balance-overview-grid"></div>
+        </div>
 
-        <h2>Займы</h2>
-        <div id="loanObligations" class="list"></div>
+        <!-- Section: Family Balances -->
+        <div class="dash-section">
+          <div class="dash-section-header">
+            <h3>📊 Состояние семей</h3>
+            <span class="dash-section-sub">Траты и статус расчетов по каждой семье</span>
+          </div>
+          <div id="familyCards" class="family-cards-grid"></div>
+        </div>
 
-        <h2>Финансовое состояние</h2>
-        <div id="familyCards" class="cards"></div>
-
+        <!-- Section: Active Loans -->
+        <div class="dash-section">
+          <div class="dash-section-header">
+            <h3>🤝 Займы</h3>
+          </div>
+          <div id="loanObligations" class="list"></div>
+        </div>
       </section>
 
       <section id="add" class="view">
-        <div class="segmented">
-          <button class="active" data-form="expenseForm">Расход</button>
-          <button data-form="transferForm">Перевод</button>
-          <button data-form="loanForm">Дать в долг</button>
-        </div>
-
         <form id="expenseForm" class="entry-form active">
           <label>Описание<input name="description" required placeholder="Ресторан" /></label>
           <label>Сумма<input name="amount" required inputmode="decimal" placeholder="180.00" /></label>
