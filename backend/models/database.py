@@ -155,23 +155,67 @@ def ensure_valid_split_method(db: sqlite3.Connection):
     if not row or "paid_only" in (row["sql"] or ""):
         return
 
-    db.execute("ALTER TABLE expenses RENAME TO expenses_old")
-    db.execute("""
-        CREATE TABLE expenses (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          trip_id INTEGER NOT NULL REFERENCES trips(id),
-          description TEXT NOT NULL,
-          amount_minor INTEGER NOT NULL CHECK (amount_minor > 0),
-          category TEXT NOT NULL DEFAULT 'Общее',
-          paid_by_family_id INTEGER NOT NULL REFERENCES families(id),
-          split_method TEXT NOT NULL,
-          created_at TEXT NOT NULL,
-          updated_at TEXT NOT NULL,
-          deleted_at TEXT
-        )
-    """)
-    db.execute("INSERT INTO expenses SELECT * FROM expenses_old")
-    db.execute("DROP TABLE expenses_old")
+    # Check if expenses_old already exists
+    old_exists = db.execute(
+        "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'expenses_old'"
+    ).fetchone()
+    
+    if old_exists:
+        # expenses_old already exists, likely from a previous failed migration
+        # Check if we have both tables and determine which one to keep
+        expenses_count = db.execute("SELECT COUNT(*) FROM expenses").fetchone()[0]
+        expenses_old_count = db.execute("SELECT COUNT(*) FROM expenses_old").fetchone()[0]
+        
+        if expenses_old_count > expenses_count:
+            # expenses_old has more data, replace expenses with it
+            db.execute("DROP TABLE IF EXISTS expenses")
+            db.execute("ALTER TABLE expenses_old RENAME TO expenses")
+        else:
+            # expenses has more or equal data, drop expenses_old
+            db.execute("DROP TABLE IF EXISTS expenses_old")
+            
+        # Re-check if we still need to fix the split_method constraint
+        row = db.execute(
+            "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'expenses'"
+        ).fetchone()
+        if "paid_only" not in (row["sql"] or ""):
+            # Still need to fix the split_method constraint
+            db.execute("ALTER TABLE expenses RENAME TO expenses_old")
+            db.execute("""
+                CREATE TABLE expenses (
+                  id INTEGER PRIMARY KEY AUTOINCREMENT,
+                  trip_id INTEGER NOT NULL REFERENCES trips(id),
+                  description TEXT NOT NULL,
+                  amount_minor INTEGER NOT NULL CHECK (amount_minor > 0),
+                  category TEXT NOT NULL DEFAULT 'Общее',
+                  paid_by_family_id INTEGER NOT NULL REFERENCES families(id),
+                  split_method TEXT NOT NULL,
+                  created_at TEXT NOT NULL,
+                  updated_at TEXT NOT NULL,
+                  deleted_at TEXT
+                )
+            """)
+            db.execute("INSERT INTO expenses SELECT * FROM expenses_old")
+            db.execute("DROP TABLE expenses_old")
+    else:
+        # Normal migration path
+        db.execute("ALTER TABLE expenses RENAME TO expenses_old")
+        db.execute("""
+            CREATE TABLE expenses (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              trip_id INTEGER NOT NULL REFERENCES trips(id),
+              description TEXT NOT NULL,
+              amount_minor INTEGER NOT NULL CHECK (amount_minor > 0),
+              category TEXT NOT NULL DEFAULT 'Общее',
+              paid_by_family_id INTEGER NOT NULL REFERENCES families(id),
+              split_method TEXT NOT NULL,
+              created_at TEXT NOT NULL,
+              updated_at TEXT NOT NULL,
+              deleted_at TEXT
+            )
+        """)
+        db.execute("INSERT INTO expenses SELECT * FROM expenses_old")
+        db.execute("DROP TABLE expenses_old")
 
 
 def ensure_trip_users(db: sqlite3.Connection):

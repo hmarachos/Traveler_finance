@@ -37,14 +37,15 @@ function setAuthView(isAuthenticated, user = null, usersCount = 0) {
   const authSubmit = document.querySelector("#authSubmit");
   const authHint = document.querySelector("#authHint");
   const authModeSwitch = document.querySelector("#authModeSwitch");
-  const userName = document.querySelector("#currentUserName");
 
   updateState({ user });
   authView?.classList.toggle("hidden", isAuthenticated);
   appMain?.classList.toggle("hidden", !isAuthenticated);
-
-  if (userName && user) {
-    userName.textContent = user.username;
+  
+  if (isAuthenticated && user) {
+    import("./renderer.js").then(({ renderUserInfo }) => {
+      renderUserInfo();
+    }).catch(() => {});
   }
 
   const isFirstUser = usersCount === 0;
@@ -71,8 +72,8 @@ function setAuthView(isAuthenticated, user = null, usersCount = 0) {
 
 function wireAuth(onAuthenticated) {
   const form = document.querySelector("#authForm");
-  const logoutButton = document.querySelector("#logoutBtn");
   const authModeSwitch = document.querySelector("#authModeSwitch");
+  const logoutBtn = document.querySelector("#logoutBtn");
 
   authModeSwitch?.addEventListener("click", (event) => {
     const button = event.target.closest("[data-auth-mode]");
@@ -100,13 +101,25 @@ function wireAuth(onAuthenticated) {
     }
   });
 
-  logoutButton?.addEventListener("click", async () => {
+  logoutBtn?.addEventListener("click", async () => {
     try {
       await logout();
-    } finally {
       localStorage.removeItem("travelerFinanceTripId");
-      updateState({ tripId: null, trip: null, trips: [], families: [], summary: null, user: null });
-      setAuthView(false, null, Math.max(1, (await getAuthStatus()).users_count || 1));
+      updateState({
+        user: null,
+        tripId: null,
+        trip: null,
+        trips: [],
+        tripUsers: [],
+        families: [],
+        summary: null,
+        journal: [],
+      });
+      const status = await getAuthStatus();
+      setAuthView(false, null, status.users_count);
+      toast("Вы вышли из аккаунта");
+    } catch (error) {
+      toast(error.message);
     }
   });
 }

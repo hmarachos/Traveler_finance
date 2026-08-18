@@ -44,10 +44,6 @@ function syncSelects() {
 }
 
 function syncTripControls() {
-  const select = qs("#tripSelect");
-  select.innerHTML = state.trips.map((trip) => `<option value="${trip.id}">${trip.name}</option>`).join("");
-  select.value = String(state.tripId || "");
-
   const form = qs("#tripEditForm");
   if (state.trip && form) {
     form.elements.name.value = state.trip.name;
@@ -328,12 +324,7 @@ function wireNavigation() {
     }
   });
 
-  qs("#tripSelect").addEventListener("change", async (event) => {
-    state.tripId = Number(event.currentTarget.value);
-    localStorage.setItem("travelerFinanceTripId", state.tripId);
-    await refreshAll();
-    toast("Путешествие открыто");
-  });
+  // Trip select removed from UI
 
   qs("#deleteTripBtn").addEventListener("click", async () => {
     if (!state.trip || !confirm(`Удалить путешествие "${state.trip.name}"? Финансовая история будет скрыта вместе с ним.`)) return;
@@ -348,7 +339,7 @@ function wireNavigation() {
     }
   });
 
-  qs("#refreshBtn").addEventListener("click", () => refreshAll().then(() => toast("Обновлено")));
+  // Refresh button removed from UI
 }
 
 async function init() {

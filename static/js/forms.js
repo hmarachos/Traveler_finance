@@ -357,216 +357,12 @@ export function wireInteractions(onDataChange) {
     // Click on journal entry (whole container is clickable)
     const timelineItem = event.target.closest(".timeline-item[data-entry-id]");
     if (timelineItem) {
+      event.preventDefault();
+      event.stopPropagation();
       const entryId = timelineItem.dataset.entryId;
       const entryType = timelineItem.dataset.entryType;
       
-      // Helper function to find family ID by name
-      function findFamilyIdByName(familyName) {
-        const family = state.families.find(f => f.name === familyName.trim());
-        return family ? family.id : null;
-      }
-      
-      // Helper function to extract family name from expense meta
-      function extractPaidByFamilyName(meta) {
-        const parts = meta.split(' · ');
-        if (parts.length >= 1 && parts[0].startsWith('Оплатили: ')) {
-          return parts[0].replace('Оплатили: ', '').trim();
-        }
-        return null;
-      }
-      
-      // Helper function to extract family names from transfer/loan meta
-      function extractFamilyNamesFromArrow(meta) {
-        const parts = meta.split(' → ');
-        if (parts.length === 2) {
-          return {
-            from: parts[0].trim(),
-            to: parts[1].trim()
-          };
-        }
-        // Try to extract from "должны" format for loans
-        const должныParts = meta.split(' должны ');
-        if (должныParts.length === 2) {
-          return {
-            from: должныParts[0].trim(), // borrower
-            to: должныParts[1].trim()    // lender
-          };
-        }
-        return { from: null, to: null };
-      }
-      
-      // Map entry types to form field names
-      const typeConfig = {
-        'expense': {
-          dialogId: '#editExpenseDialog',
-          formId: '#editExpenseForm',
-          idField: 'expense_id',
-          getFormData: (entry) => {
-            const metaParts = entry.meta.split(' · ');
-            const category = metaParts.length >= 2 ? metaParts[1].trim() : 'Общее';
-            let splitMethod = metaParts.length >= 3 ? metaParts[2].trim() : 'equal';
-            
-            // Handle "Ручное распределение" text
-            if (splitMethod === 'Ручное распределение') {
-              splitMethod = 'custom';
-            }
-            
-            const paidByFamilyName = extractPaidByFamilyName(entry.meta);
-            const paidByFamilyId = paidByFamilyName ? findFamilyIdByName(paidByFamilyName) : null;
-            
-            // Check if category is in standard categories
-            const standardCategories = [
-              'Общее', 'Жильё', 'Транспорт', 'Еда', 'Продукты', 
-              'Развлечения', 'Сувениры', 'Здоровье', 'Связь', 
-              'Страховка', 'Парковка', 'Туалеты', 'Другое'
-            ];
-            const categoryValue = standardCategories.includes(category) ? category : 'Другое';
-            const customCategory = standardCategories.includes(category) ? '' : category;
-            
-            return {
-              description: entry.title,
-              amount: (entry.amount_minor / 100).toFixed(2),
-              category: categoryValue,
-              custom_category: customCategory,
-              paid_by_family_id: paidByFamilyId || (state.families.length > 0 ? state.families[0].id : '1'),
-              split_method: splitMethod
-            };
-          }
-        },
-        'transfer': {
-          dialogId: '#editTransferDialog',
-          formId: '#editTransferForm',
-          idField: 'transfer_id',
-          getFormData: (entry) => {
-            const familyNames = extractFamilyNamesFromArrow(entry.meta);
-            const fromFamilyId = familyNames.from ? findFamilyIdByName(familyNames.from) : null;
-            const toFamilyId = familyNames.to ? findFamilyIdByName(familyNames.to) : null;
-            
-            return {
-              from_family_id: fromFamilyId || (state.families.length > 0 ? state.families[0].id : '1'),
-              to_family_id: toFamilyId || (state.families.length > 0 ? state.families[0].id : '1'),
-              amount: (entry.amount_minor / 100).toFixed(2),
-              transfer_type: 'transfer',
-              description: entry.title
-            };
-          }
-        },
-        'advance': {
-          dialogId: '#editTransferDialog',
-          formId: '#editTransferForm',
-          idField: 'transfer_id',
-          getFormData: (entry) => {
-            const familyNames = extractFamilyNamesFromArrow(entry.meta);
-            const fromFamilyId = familyNames.from ? findFamilyIdByName(familyNames.from) : null;
-            const toFamilyId = familyNames.to ? findFamilyIdByName(familyNames.to) : null;
-            
-            return {
-              from_family_id: fromFamilyId || (state.families.length > 0 ? state.families[0].id : '1'),
-              to_family_id: toFamilyId || (state.families.length > 0 ? state.families[0].id : '1'),
-              amount: (entry.amount_minor / 100).toFixed(2),
-              transfer_type: 'advance',
-              description: entry.title
-            };
-          }
-        },
-        'loan': {
-          dialogId: '#editLoanDialog',
-          formId: '#editLoanForm',
-          idField: 'loan_id',
-          getFormData: (entry) => {
-            const familyNames = extractFamilyNamesFromArrow(entry.meta);
-            const borrowerFamilyId = familyNames.from ? findFamilyIdByName(familyNames.from) : null;
-            const lenderFamilyId = familyNames.to ? findFamilyIdByName(familyNames.to) : null;
-            
-            return {
-              lender_family_id: lenderFamilyId || (state.families.length > 0 ? state.families[0].id : '1'),
-              borrower_family_id: borrowerFamilyId || (state.families.length > 0 ? state.families[0].id : '1'),
-              amount: (entry.amount_minor / 100).toFixed(2),
-              description: entry.title
-            };
-          }
-        },
-        'loan_repayment': {
-          dialogId: null, // No edit for repayments
-          formId: null,
-          idField: null,
-          getFormData: null
-        }
-      };
-      
-      const config = typeConfig[entryType];
-      if (!config || !config.dialogId) return; // Skip unsupported types
-      
-      const dialog = qs(config.dialogId);
-      const form = qs(config.formId);
-      
-      if (!dialog || !form) return;
-      
-      // Store entry data for later use
-      const entryData = {
-        id: entryId,
-        type: entryType,
-        element: timelineItem
-      };
-      
-      // Set form ID field
-      form.elements[config.idField].value = entryId;
-      
-      // Get entry from journal data
-      const journalData = state.journal || [];
-      const entry_full = journalData.find(
-        (entry) =>
-          String(entry.id) === String(entryId) &&
-          String(entry.type) === String(entryType)
-      );
-      
-      if (entry_full) {
-        const formData = config.getFormData(entry_full);
-        Object.keys(formData).forEach(key => {
-          if (form.elements[key]) {
-            if (key === 'split_method') {
-              const radios = form.querySelectorAll(`input[name="${key}"]`);
-              radios.forEach(radio => {
-                radio.checked = radio.value === formData[key];
-              });
-            } else {
-              form.elements[key].value = formData[key];
-            }
-          }
-        });
-        
-        // Update custom category visibility for expense form
-        if (entryType === 'expense') {
-          const categorySelect = document.getElementById('editCategorySelect');
-          const customCategoryLabel = document.getElementById('editCustomCategoryLabel');
-          const customCategoryInput = document.getElementById('editCustomCategoryInput');
-          
-          if (categorySelect && customCategoryLabel && customCategoryInput) {
-            // Trigger category change to show/hide custom category field
-            if (categorySelect.value === 'Другое' && formData.custom_category) {
-              customCategoryLabel.classList.remove('hidden');
-              customCategoryInput.required = true;
-            } else {
-              customCategoryLabel.classList.add('hidden');
-              customCategoryInput.required = false;
-            }
-          }
-          
-          // Handle custom split method
-          const editCustomSplitContainer = document.getElementById('editCustomSplitContainer');
-          if (formData.split_method === 'custom' && editCustomSplitContainer) {
-            editCustomSplitContainer.classList.remove('hidden');
-            // Get custom_split_weights from entry_full if available
-            const customWeights = entry_full.custom_split_weights || {};
-            renderCustomSplitWeights('editCustomSplitWeights', customWeights);
-          } else if (editCustomSplitContainer) {
-            editCustomSplitContainer.classList.add('hidden');
-          }
-        }
-      }
-      
-      dialog.showModal();
-      syncSelectElements(); // Refresh family selects
+      openViewEntryDialog(entryId, entryType);
       return;
     }
     
@@ -669,12 +465,7 @@ export function wireInteractions(onDataChange) {
     }
   });
 
-  // Trip select handler
-  qs("#tripSelect").addEventListener("change", async (event) => {
-    updateState({ tripId: Number(event.currentTarget.value) });
-    await onDataChange();
-    toast("Путешествие открыто");
-  });
+  // Trip select removed from UI
 
   // Delete trip handler
   qs("#deleteTripBtn").addEventListener("click", async () => {
@@ -701,10 +492,7 @@ export function wireInteractions(onDataChange) {
     }
   });
 
-  // Refresh button handler
-  qs("#refreshBtn").addEventListener("click", () =>
-    onDataChange().then(() => toast("Обновлено"))
-  );
+  // Refresh button removed from UI
   
   // Delete expense button
   qs("#deleteExpenseBtn")?.addEventListener("click", async () => {
@@ -896,8 +684,508 @@ function renderCustomSplitWeights(containerId, existingWeights = {}) {
   });
 }
 
+/**
+ * Open view entry dialog with readonly fields
+ */
+function openViewEntryDialog(entryId, entryType) {
+  const dialog = qs("#viewEntryDialog");
+  const form = qs("#viewEntryForm");
+  const content = qs("#viewEntryContent");
+  const editButton = qs("#editEntryBtn");
+  const closeButton = qs("#closeViewEntryBtn");
+  
+  if (!dialog || !form || !content) return;
+  
+  // Helper function to extract family name from expense meta
+  function extractPaidByFamilyName(meta) {
+    const parts = meta.split(' · ');
+    if (parts.length >= 1 && parts[0].startsWith('Оплатили: ')) {
+      return parts[0].replace('Оплатили: ', '').trim();
+    }
+    return null;
+  }
+  
+  // Helper function to extract family names from transfer/loan meta
+  function extractFamilyNamesFromArrow(meta) {
+    const parts = meta.split(' → ');
+    if (parts.length === 2) {
+      return {
+        from: parts[0].trim(),
+        to: parts[1].trim()
+      };
+    }
+    // Try to extract from "должны" format for loans
+    const должныParts = meta.split(' должны ');
+    if (должныParts.length === 2) {
+      return {
+        from: должныParts[0].trim(), // borrower
+        to: должныParts[1].trim()    // lender
+      };
+    }
+    return { from: null, to: null };
+  }
+  
+  // Get entry from journal data
+  const journalData = state.journal || [];
+  const entry = journalData.find(
+    (entry) =>
+      String(entry.id) === String(entryId) &&
+      String(entry.type) === String(entryType)
+  );
+  
+  if (!entry) {
+    toast("Операция не найдена");
+    return;
+  }
+  
+  // Set form fields
+  form.elements.entry_id.value = entryId;
+  form.elements.entry_type.value = entryType;
+  
+  // Generate view content based on entry type
+  let viewContent = '';
+  const currency = state.trip?.currency || "EUR";
+  const amountFormatted = (entry.amount_minor / 100).toFixed(2);
+  
+  switch (entryType) {
+    case 'expense':
+      const metaParts = entry.meta.split(' · ');
+      const category = metaParts.length >= 2 ? metaParts[1].trim() : 'Общее';
+      let splitMethod = metaParts.length >= 3 ? metaParts[2].trim() : 'equal';
+      
+      // Handle "Ручное распределение" text
+      if (splitMethod === 'Ручное распределение') {
+        splitMethod = 'custom';
+      }
+      
+      const paidByFamilyName = extractPaidByFamilyName(entry.meta);
+      const paidByFamilyId = paidByFamilyName ? findFamilyIdByName(paidByFamilyName) : null;
+      
+      // Check if category is in standard categories
+      const standardCategories = [
+        'Общее', 'Жильё', 'Транспорт', 'Еда', 'Продукты', 
+        'Развлечения', 'Сувениры', 'Здоровье', 'Связь', 
+        'Страховка', 'Парковка', 'Туалеты', 'Другое'
+      ];
+      const categoryValue = standardCategories.includes(category) ? category : 'Другое';
+      const customCategory = standardCategories.includes(category) ? '' : category;
+      
+      const splitMethodText = {
+        'equal': 'Поровну между семьями',
+        'per_person': 'По количеству людей',
+        'paid_only': 'Только оплачивающая семья',
+        'custom': 'Вручную указать распределение'
+      }[splitMethod] || splitMethod;
+      
+      viewContent = `
+        <div style="display: grid; gap: 16px;">
+          <label>
+            <span style="display: block; margin-bottom: 4px; color: var(--muted); font-size: 13px;">Описание</span>
+            <input name="description" value="${entry.title || ''}" placeholder="Ресторан" readonly style="background-color: var(--green-soft); cursor: not-allowed;" />
+          </label>
+          <label>
+            <span style="display: block; margin-bottom: 4px; color: var(--muted); font-size: 13px;">Сумма</span>
+            <input name="amount" value="${amountFormatted}" readonly style="background-color: var(--green-soft); cursor: not-allowed;" />
+          </label>
+          <label>
+            <span style="display: block; margin-bottom: 4px; color: var(--muted); font-size: 13px;">Категория</span>
+            <input name="category" value="${category}" readonly style="background-color: var(--green-soft); cursor: not-allowed;" />
+          </label>
+          <label>
+            <span style="display: block; margin-bottom: 4px; color: var(--muted); font-size: 13px;">Кто оплатил</span>
+            <input name="paid_by_family_id" value="${paidByFamilyName || ''}" readonly style="background-color: var(--green-soft); cursor: not-allowed;" />
+          </label>
+          <label>
+            <span style="display: block; margin-bottom: 4px; color: var(--muted); font-size: 13px;">Распределение</span>
+            <input name="split_method" value="${splitMethodText}" readonly style="background-color: var(--green-soft); cursor: not-allowed;" />
+          </label>
+        </div>
+      `;
+      break;
+      
+    case 'transfer':
+    case 'advance':
+      const familyNames = extractFamilyNamesFromArrow(entry.meta);
+      const transferType = entryType === 'advance' ? 'advance' : 'transfer';
+      const transferTypeText = transferType === 'advance' ? 'Аванс' : 'Обычный перевод';
+      
+      viewContent = `
+        <div style="display: grid; gap: 16px;">
+          <label>
+            <span style="display: block; margin-bottom: 4px; color: var(--muted); font-size: 13px;">От кого</span>
+            <input name="from_family_id" value="${familyNames.from || ''}" readonly style="background-color: var(--green-soft); cursor: not-allowed;" />
+          </label>
+          <label>
+            <span style="display: block; margin-bottom: 4px; color: var(--muted); font-size: 13px;">Кому</span>
+            <input name="to_family_id" value="${familyNames.to || ''}" readonly style="background-color: var(--green-soft); cursor: not-allowed;" />
+          </label>
+          <label>
+            <span style="display: block; margin-bottom: 4px; color: var(--muted); font-size: 13px;">Сумма</span>
+            <input name="amount" value="${amountFormatted}" readonly style="background-color: var(--green-soft); cursor: not-allowed;" />
+          </label>
+          <label>
+            <span style="display: block; margin-bottom: 4px; color: var(--muted); font-size: 13px;">Тип</span>
+            <input name="transfer_type" value="${transferTypeText}" readonly style="background-color: var(--green-soft); cursor: not-allowed;" />
+          </label>
+          <label>
+            <span style="display: block; margin-bottom: 4px; color: var(--muted); font-size: 13px;">Комментарий</span>
+            <input name="description" value="${entry.title || ''}" readonly style="background-color: var(--green-soft); cursor: not-allowed;" />
+          </label>
+        </div>
+      `;
+      break;
+      
+    case 'loan':
+      const loanFamilyNames = extractFamilyNamesFromArrow(entry.meta);
+      const remainingAmount = entry.remaining_amount_minor !== undefined 
+        ? ` · остаток ${(entry.remaining_amount_minor / 100).toFixed(2)} ${currency}`
+        : '';
+      
+      viewContent = `
+        <div style="display: grid; gap: 16px;">
+          <label>
+            <span style="display: block; margin-bottom: 4px; color: var(--muted); font-size: 13px;">Кто дает</span>
+            <input name="lender_family_id" value="${loanFamilyNames.to || ''}" readonly style="background-color: var(--green-soft); cursor: not-allowed;" />
+          </label>
+          <label>
+            <span style="display: block; margin-bottom: 4px; color: var(--muted); font-size: 13px;">Кому</span>
+            <input name="borrower_family_id" value="${loanFamilyNames.from || ''}" readonly style="background-color: var(--green-soft); cursor: not-allowed;" />
+          </label>
+          <label>
+            <span style="display: block; margin-bottom: 4px; color: var(--muted); font-size: 13px;">Сумма</span>
+            <input name="amount" value="${amountFormatted}" readonly style="background-color: var(--green-soft); cursor: not-allowed;" />
+          </label>
+          <label>
+            <span style="display: block; margin-bottom: 4px; color: var(--muted); font-size: 13px;">Комментарий</span>
+            <input name="description" value="${entry.title || ''}" readonly style="background-color: var(--green-soft); cursor: not-allowed;" />
+          </label>
+          ${remainingAmount ? `
+          <label>
+            <span style="display: block; margin-bottom: 4px; color: var(--muted); font-size: 13px;">Остаток к возврату</span>
+            <input name="remaining_amount" value="${(entry.remaining_amount_minor / 100).toFixed(2)} ${currency}" readonly style="background-color: var(--green-soft); cursor: not-allowed;" />
+          </label>` : ''}
+        </div>
+      `;
+      break;
+    
+    default:
+      viewContent = `<p style="color: var(--muted); text-align: center;">Тип операции не поддерживается для просмотра</p>`;
+  }
+  
+  content.innerHTML = viewContent;
+  
+  // Toggle edit button visibility based on edit support
+  const isEditable = ['expense', 'transfer', 'advance', 'loan'].includes(entryType);
+  editButton.style.display = isEditable ? '' : 'none';
+
+  // Setup event handlers if not already setup
+  if (!closeButton.dataset.hasListener) {
+    closeButton.addEventListener('click', () => {
+      dialog.close();
+      form.reset();
+    });
+    closeButton.dataset.hasListener = 'true';
+  }
+  
+  if (!editButton.dataset.hasListener) {
+    editButton.addEventListener('click', () => {
+      dialog.close();
+      // Read current entry ID and type dynamically from form elements
+      const currentEntryId = form.elements.entry_id.value;
+      const currentEntryType = form.elements.entry_type.value;
+      if (currentEntryId && currentEntryType) {
+        openEditEntryDialog(currentEntryId, currentEntryType);
+      }
+    });
+    editButton.dataset.hasListener = 'true';
+  }
+  
+  dialog.showModal();
+}
+
+/**
+ * Open appropriate edit dialog for entry
+ */
+function openEditEntryDialog(entryId, entryType) {
+  // Map entry types to form field names
+  const typeConfig = {
+    'expense': {
+      dialogId: '#editExpenseDialog',
+      formId: '#editExpenseForm',
+      idField: 'expense_id',
+      getFormData: (entry) => {
+        const metaParts = entry.meta.split(' · ');
+        const category = metaParts.length >= 2 ? metaParts[1].trim() : 'Общее';
+        let splitMethod = metaParts.length >= 3 ? metaParts[2].trim() : 'equal';
+        
+        // Handle "Ручное распределение" text
+        if (splitMethod === 'Ручное распределение') {
+          splitMethod = 'custom';
+        }
+        
+        const paidByFamilyName = (meta) => {
+          const parts = meta.split(' · ');
+          if (parts.length >= 1 && parts[0].startsWith('Оплатили: ')) {
+            return parts[0].replace('Оплатили: ', '').trim();
+          }
+          return null;
+        };
+        
+        const paidByFamilyId = findFamilyIdByName(paidByFamilyName(entry.meta));
+        
+        // Check if category is in standard categories
+        const standardCategories = [
+          'Общее', 'Жильё', 'Транспорт', 'Еда', 'Продукты', 
+          'Развлечения', 'Сувениры', 'Здоровье', 'Связь', 
+          'Страховка', 'Парковка', 'Туалеты', 'Другое'
+        ];
+        const categoryValue = standardCategories.includes(category) ? category : 'Другое';
+        const customCategory = standardCategories.includes(category) ? '' : category;
+        
+        return {
+          description: entry.title,
+          amount: (entry.amount_minor / 100).toFixed(2),
+          category: categoryValue,
+          custom_category: customCategory,
+          paid_by_family_id: paidByFamilyId || (state.families.length > 0 ? state.families[0].id : '1'),
+          split_method: splitMethod
+        };
+      }
+    },
+    'transfer': {
+      dialogId: '#editTransferDialog',
+      formId: '#editTransferForm',
+      idField: 'transfer_id',
+      getFormData: (entry) => {
+        const familyNames = (meta) => {
+          const parts = meta.split(' → ');
+          if (parts.length === 2) {
+            return {
+              from: parts[0].trim(),
+              to: parts[1].trim()
+            };
+          }
+          return { from: null, to: null };
+        };
+        
+        const names = familyNames(entry.meta);
+        const fromFamilyId = names.from ? findFamilyIdByName(names.from) : null;
+        const toFamilyId = names.to ? findFamilyIdByName(names.to) : null;
+        
+        return {
+          from_family_id: fromFamilyId || (state.families.length > 0 ? state.families[0].id : '1'),
+          to_family_id: toFamilyId || (state.families.length > 0 ? state.families[0].id : '1'),
+          amount: (entry.amount_minor / 100).toFixed(2),
+          transfer_type: 'transfer',
+          description: entry.title
+        };
+      }
+    },
+    'advance': {
+      dialogId: '#editTransferDialog',
+      formId: '#editTransferForm',
+      idField: 'transfer_id',
+      getFormData: (entry) => {
+        const familyNames = (meta) => {
+          const parts = meta.split(' → ');
+          if (parts.length === 2) {
+            return {
+              from: parts[0].trim(),
+              to: parts[1].trim()
+            };
+          }
+          return { from: null, to: null };
+        };
+        
+        const names = familyNames(entry.meta);
+        const fromFamilyId = names.from ? findFamilyIdByName(names.from) : null;
+        const toFamilyId = names.to ? findFamilyIdByName(names.to) : null;
+        
+        return {
+          from_family_id: fromFamilyId || (state.families.length > 0 ? state.families[0].id : '1'),
+          to_family_id: toFamilyId || (state.families.length > 0 ? state.families[0].id : '1'),
+          amount: (entry.amount_minor / 100).toFixed(2),
+          transfer_type: 'advance',
+          description: entry.title
+        };
+      }
+    },
+    'loan': {
+      dialogId: '#editLoanDialog',
+      formId: '#editLoanForm',
+      idField: 'loan_id',
+      getFormData: (entry) => {
+        const familyNames = (meta) => {
+          const parts = meta.split(' должны ');
+          if (parts.length === 2) {
+            return {
+              from: parts[0].trim(), // borrower
+              to: parts[1].trim()    // lender
+            };
+          }
+          // Try arrow format as fallback
+          const arrowParts = meta.split(' → ');
+          if (arrowParts.length === 2) {
+            return {
+              from: arrowParts[0].trim(), // borrower
+              to: arrowParts[1].trim()    // lender
+            };
+          }
+          return { from: null, to: null };
+        };
+        
+        const names = familyNames(entry.meta);
+        const borrowerFamilyId = names.from ? findFamilyIdByName(names.from) : null;
+        const lenderFamilyId = names.to ? findFamilyIdByName(names.to) : null;
+        
+        return {
+          lender_family_id: lenderFamilyId || (state.families.length > 0 ? state.families[0].id : '1'),
+          borrower_family_id: borrowerFamilyId || (state.families.length > 0 ? state.families[0].id : '1'),
+          amount: (entry.amount_minor / 100).toFixed(2),
+          description: entry.title
+        };
+      }
+    }
+  };
+  
+  const config = typeConfig[entryType];
+  if (!config) {
+    toast("Тип операции не поддерживает редактирование");
+    return;
+  }
+  
+  const dialog = qs(config.dialogId);
+  const form = qs(config.formId);
+  
+  if (!dialog || !form) {
+    toast("Форма редактирования не найдена");
+    return;
+  }
+  
+  // Clear all form fields first
+  form.reset();
+  
+  // Set form ID field
+  form.elements[config.idField].value = entryId;
+  
+  // Get entry from journal data
+  const journalData = state.journal || [];
+  const entry = journalData.find(
+    (entry) =>
+      String(entry.id) === String(entryId) &&
+      String(entry.type) === String(entryType)
+  );
+  
+  if (entry) {
+    const formData = config.getFormData(entry);
+    Object.keys(formData).forEach(key => {
+      if (form.elements[key]) {
+        if (key === 'split_method') {
+          const radios = form.querySelectorAll(`input[name="${key}"]`);
+          radios.forEach(radio => {
+            radio.checked = radio.value === formData[key];
+          });
+        } else {
+          form.elements[key].value = formData[key];
+        }
+      }
+    });
+    
+    // Update custom category visibility for expense form
+    if (entryType === 'expense') {
+      const categorySelect = document.getElementById('editCategorySelect');
+      const customCategoryLabel = document.getElementById('editCustomCategoryLabel');
+      const customCategoryInput = document.getElementById('editCustomCategoryInput');
+      
+      if (categorySelect && customCategoryLabel && customCategoryInput) {
+        // Trigger category change to show/hide custom category field
+        if (categorySelect.value === 'Другое' && formData.custom_category) {
+          customCategoryLabel.classList.remove('hidden');
+          customCategoryInput.required = true;
+        } else {
+          customCategoryLabel.classList.add('hidden');
+          customCategoryInput.required = false;
+        }
+      }
+      
+      // Handle custom split method
+      const editCustomSplitContainer = document.getElementById('editCustomSplitContainer');
+      if (formData.split_method === 'custom' && editCustomSplitContainer) {
+        editCustomSplitContainer.classList.remove('hidden');
+        // Get custom_split_weights from entry if available
+        const customWeights = entry.custom_split_weights || {};
+        renderCustomSplitWeights('editCustomSplitWeights', customWeights);
+      } else if (editCustomSplitContainer) {
+        editCustomSplitContainer.classList.add('hidden');
+      }
+    }
+  }
+  
+  dialog.showModal();
+  syncSelectElements(); // Refresh family selects
+}
+
+// Helper function for findFamilyIdByName (needs to be global for the functions above)
+function findFamilyIdByName(familyName) {
+  if (!familyName) return null;
+  const family = state.families.find(f => f.name === familyName.trim());
+  return family ? family.id : null;
+}
+
+/**
+ * Setup dialog close handlers to clear forms
+ */
+function setupDialogCloseHandlers() {
+  // Setup expense dialog close handler
+  const editExpenseDialog = qs('#editExpenseDialog');
+  if (editExpenseDialog && !editExpenseDialog.dataset.hasCloseHandler) {
+    editExpenseDialog.addEventListener('close', () => {
+      const form = qs('#editExpenseForm');
+      if (form) form.reset();
+      
+      // Clear custom split container
+      const customSplitContainer = document.getElementById('editCustomSplitContainer');
+      if (customSplitContainer) customSplitContainer.classList.add('hidden');
+    });
+    editExpenseDialog.dataset.hasCloseHandler = 'true';
+  }
+  
+  // Setup transfer dialog close handler
+  const editTransferDialog = qs('#editTransferDialog');
+  if (editTransferDialog && !editTransferDialog.dataset.hasCloseHandler) {
+    editTransferDialog.addEventListener('close', () => {
+      const form = qs('#editTransferForm');
+      if (form) form.reset();
+    });
+    editTransferDialog.dataset.hasCloseHandler = 'true';
+  }
+  
+  // Setup loan dialog close handler
+  const editLoanDialog = qs('#editLoanDialog');
+  if (editLoanDialog && !editLoanDialog.dataset.hasCloseHandler) {
+    editLoanDialog.addEventListener('close', () => {
+      const form = qs('#editLoanForm');
+      if (form) form.reset();
+    });
+    editLoanDialog.dataset.hasCloseHandler = 'true';
+  }
+  
+  // Setup view dialog close handler
+  const viewEntryDialog = qs('#viewEntryDialog');
+  if (viewEntryDialog && !viewEntryDialog.dataset.hasCloseHandler) {
+    viewEntryDialog.addEventListener('close', () => {
+      const form = qs('#viewEntryForm');
+      if (form) form.reset();
+      const content = qs('#viewEntryContent');
+      if (content) content.innerHTML = '';
+    });
+    viewEntryDialog.dataset.hasCloseHandler = 'true';
+  }
+}
+
 // Call setup on DOM ready
 document.addEventListener('DOMContentLoaded', () => {
   setupCategoryHandling();
   setupCustomSplitHandling();
+  setupDialogCloseHandlers();
 });

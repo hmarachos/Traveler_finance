@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Тест исправления форм</title>
+</head>
+<body>
+    <h1>Тест исправления проблемы с формами редактирования</h1>
+    
+    <p>Проблема: при открытии диалога редактирования операции, он запоминает состояние и при следующем открытии открывается такое же. Это неверно т.к. для расхода и для аванса разные наборы свойств - у аванса и перевода нет свойства "Распределение".</p>
+    
+    <h2>Исправления, которые мы внесли:</h2>
+    
+    <ol>
+        <li>Добавлена функция <code>setupDialogCloseHandlers()</code> которая сбрасывает формы при закрытии диалогов</li>
+        <li>В функции <code>openEditEntryDialog()</code> добавлен сброс формы перед заполнением: <code>form.reset()</code></li>
+        <li>Обработчики закрытия диалогов добавляются для всех диалогов редактирования</li>
+    </ol>
+    
+    <h2>Проверка:</h2>
+    
+    <ul>
+        <li>При закрытии диалога editExpenseDialog форма должна сбрасываться</li>
+        <li>При закрытии диалога editTransferDialog форма должна сбрасываться</li>
+        <li>При закрытии диалога editLoanDialog форма должна сбрасываться</li>
+        <li>При закрытии диалога viewEntryDialog форма должна сбрасываться</li>
+        <li>При открытии диалога редактирования для нового типа операции форма должна быть чистой</li>
+    </ul>
+    
+    <p>Файлы изменены:</p>
+    <ul>
+        <li><code>/Users/alexander/Documents/GitHub/Traveler_finance/static/js/forms.js</code> - исправлены функции openEditEntryDialog и добавлена setupDialogCloseHandlers</li>
+    </ul>
+</body>
+</html>

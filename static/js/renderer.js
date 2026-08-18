@@ -215,6 +215,25 @@ export function renderLoans(loans) {
 }
 
 /**
+ * Get date group label for an entry
+ */
+function getDateGroupLabel(dateString) {
+  const date = new Date(dateString);
+  const today = new Date();
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+
+  const isToday = date.toDateString() === today.toDateString();
+  const isYesterday = date.toDateString() === yesterday.toDateString();
+
+  if (isToday) return "Сегодня";
+  if (isYesterday) return "Вчера";
+
+  // Format date as "DD.MM.YYYY"
+  return date.toLocaleDateString("ru-RU");
+}
+
+/**
  * Render journal/transaction log
  */
 export function renderJournal(items) {
@@ -249,31 +268,60 @@ export function renderJournal(items) {
     categoryFilter.value = '';
   }
 
-  // Render filtered journal
-  const filteredItems = items; // Will be filtered by event listener
+  // Group items by date
+  const groupedItems = {};
+  items.forEach(entry => {
+    const dateLabel = getDateGroupLabel(entry.created_at);
+    if (!groupedItems[dateLabel]) {
+      groupedItems[dateLabel] = [];
+    }
+    groupedItems[dateLabel].push(entry);
+  });
+
+  // Sort dates: today, yesterday, then descending by date
+  const sortedDates = Object.keys(groupedItems).sort((a, b) => {
+    const dateA = new Date(a);
+    const dateB = new Date(b);
+    return dateB - dateA;
+  });
+
+  // Render grouped journal
   const journalListEl = qs("#journalList");
   if (journalListEl) {
-    journalListEl.innerHTML = filteredItems.length
-      ? filteredItems
-          .map(
-            (entry) => `
-            <article class="timeline-item clickable" data-entry-id="${entry.id}" data-entry-type="${entry.type}">
-              <p class="line">
-                <span>${getTransactionLabel(entry.type)} · ${entry.title}</span>
-                <span>${money(entry.amount_minor, currency)}</span>
-              </p>
-              <p class="meta">
-                ${new Date(entry.created_at).toLocaleDateString("ru-RU")} · ${entry.author || 'Система'} · ${entry.meta}${
-                  entry.remaining_amount_minor !== undefined
-                    ? ` · остаток ${money(entry.remaining_amount_minor, currency)}`
-                    : ""
-                }
-              </p>
-            </article>
-          `
-          )
-          .join("")
-      : emptyState("Операций пока нет");
+    if (items.length === 0) {
+      journalListEl.innerHTML = emptyState("Операций пока нет");
+    } else {
+      journalListEl.innerHTML = sortedDates
+        .map(
+          (dateLabel) => `
+          <section class="journal-date-group">
+            <h3 class="journal-date-header">${dateLabel}</h3>
+            <div class="timeline">
+              ${groupedItems[dateLabel]
+                .map(
+                  (entry) => `
+                <article class="timeline-item clickable" data-entry-id="${entry.id}" data-entry-type="${entry.type}">
+                  <p class="line">
+                    <span>${getTransactionLabel(entry.type)} · ${entry.title}</span>
+                    <span>${money(entry.amount_minor, currency)}</span>
+                  </p>
+                  <p class="meta">
+                    ${entry.author || 'Система'} · ${entry.meta}${
+                    entry.remaining_amount_minor !== undefined
+                      ? ` · остаток ${money(entry.remaining_amount_minor, currency)}`
+                      : ""
+                  }
+                  </p>
+                </article>
+              `
+                )
+                .join("")}
+            </div>
+          </section>
+        `
+        )
+        .join("");
+    }
   }
 }
 
@@ -302,14 +350,6 @@ function syncFamilyPair(formSelector, firstName, secondName) {
  * Sync trip dropdown and edit form
  */
 export function syncTripControls() {
-  const select = qs("#tripSelect");
-  if (select) {
-    select.innerHTML = state.trips
-      .map((trip) => `<option value="${trip.id}">${trip.name}</option>`)
-      .join("");
-    select.value = String(state.tripId || "");
-  }
-
   const form = qs("#tripEditForm");
   if (state.trip && form) {
     form.elements.name.value = state.trip.name;
@@ -481,27 +521,74 @@ export function setupJournalFilter() {
         })
       : items;
     
-    // Re-render filtered list
-    journalList.innerHTML = filteredItems.length
-      ? filteredItems
-          .map(
-            (entry) => `
-            <article class="timeline-item clickable" data-entry-id="${entry.id}" data-entry-type="${entry.type}">
-              <p class="line">
-                <span>${getTransactionLabel(entry.type)} · ${entry.title}</span>
-                <span>${money(entry.amount_minor, currency)}</span>
-              </p>
-              <p class="meta">
-                ${new Date(entry.created_at).toLocaleDateString("ru-RU")} · ${entry.author || 'Система'} · ${entry.meta}${
-                  entry.remaining_amount_minor !== undefined
-                    ? ` · остаток ${money(entry.remaining_amount_minor, currency)}`
-                    : ""
-                }
-              </p>
-            </article>
-          `
-          )
-          .join("")
-      : emptyState("Операций с этой категорией нет");
+    // Group filtered items by date
+    const groupedItems = {};
+    filteredItems.forEach(entry => {
+      const dateLabel = getDateGroupLabel(entry.created_at);
+      if (!groupedItems[dateLabel]) {
+        groupedItems[dateLabel] = [];
+      }
+      groupedItems[dateLabel].push(entry);
+    });
+
+    // Sort dates: today, yesterday, then descending by date
+    const sortedDates = Object.keys(groupedItems).sort((a, b) => {
+      const dateA = new Date(a);
+      const dateB = new Date(b);
+      return dateB - dateA;
+    });
+    
+    // Re-render grouped filtered list
+    if (filteredItems.length === 0) {
+      journalList.innerHTML = emptyState("Операций с этой категорией нет");
+    } else {
+      journalList.innerHTML = sortedDates
+        .map(
+          (dateLabel) => `
+          <section class="journal-date-group">
+            <h3 class="journal-date-header">${dateLabel}</h3>
+            <div class="timeline">
+              ${groupedItems[dateLabel]
+                .map(
+                  (entry) => `
+                <article class="timeline-item clickable" data-entry-id="${entry.id}" data-entry-type="${entry.type}">
+                  <p class="line">
+                    <span>${getTransactionLabel(entry.type)} · ${entry.title}</span>
+                    <span>${money(entry.amount_minor, currency)}</span>
+                  </p>
+                  <p class="meta">
+                    ${entry.author || 'Система'} · ${entry.meta}${
+                    entry.remaining_amount_minor !== undefined
+                      ? ` · остаток ${money(entry.remaining_amount_minor, currency)}`
+                      : ""
+                  }
+                  </p>
+                </article>
+              `
+                )
+                .join("")}
+            </div>
+          </section>
+        `
+        )
+        .join("");
+    }
   });
+}
+
+/**
+ * Display current user information in settings
+ */
+export function renderUserInfo() {
+  const usernameElement = qs("#currentUsername");
+  if (usernameElement && state.user) {
+    usernameElement.textContent = state.user.username;
+  }
+}
+
+/**
+ * Initialize user information display
+ */
+export function initUserInfo() {
+  renderUserInfo();
 }
