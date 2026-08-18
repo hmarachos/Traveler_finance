@@ -1609,3 +1609,184 @@ dialog::backdrop {
   font-size: 12px;
   color: var(--muted);
 }
+
+/* Category Visual Chips */
+.category-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.category-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 11px;
+  border-radius: 16px;
+  font-size: 13px;
+  font-weight: 500;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.category-chip:hover {
+  background: rgba(34, 97, 95, 0.08);
+  border-color: rgba(34, 97, 95, 0.3);
+}
+
+.category-chip.active {
+  background: var(--green-soft);
+  color: var(--green);
+  border-color: var(--green);
+  font-weight: 600;
+}
+
+/* One-Tap Settlement Button */
+.balance-right-action {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.settle-pay-btn {
+  background: var(--green);
+  color: #ffffff;
+  border: none;
+  border-radius: 14px;
+  padding: 5px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 6px rgba(34, 97, 95, 0.2);
+}
+
+.settle-pay-btn:hover {
+  background: #194846;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 10px rgba(34, 97, 95, 0.3);
+}
+
+/* Loan Visual Progress Bar */
+.loan-progress-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 8px 0 12px;
+}
+
+.loan-progress-track {
+  width: 100%;
+  height: 7px;
+  background: rgba(24, 33, 31, 0.08);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.loan-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #10b981, #22615f);
+  border-radius: 10px;
+  transition: width 0.4s ease;
+}
+
+.loan-progress-meta {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--muted);
+  font-weight: 500;
+}
+
+/* Operations Search Box & Type Filter Pills */
+.journal-controls-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.search-input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.search-icon {
+  position: absolute;
+  left: 12px;
+  font-size: 14px;
+  pointer-events: none;
+  opacity: 0.6;
+}
+
+.search-input-wrap input {
+  width: 100%;
+  min-height: 42px;
+  padding: 0 14px 0 36px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 14px;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.search-input-wrap input:focus {
+  outline: none;
+  border-color: var(--green);
+  box-shadow: 0 0 0 3px rgba(34, 97, 95, 0.15);
+}
+
+.journal-filter-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.type-filter-pills {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.type-pill {
+  padding: 5px 11px;
+  border-radius: 16px;
+  font-size: 12px;
+  font-weight: 500;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--muted);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.type-pill:hover {
+  color: var(--ink);
+  border-color: rgba(34, 97, 95, 0.3);
+}
+
+.type-pill.active {
+  background: var(--green);
+  color: #ffffff;
+  border-color: var(--green);
+  font-weight: 600;
+}
+
+.journal-category-select {
+  min-height: 34px;
+  padding: 0 10px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  font-size: 12px;
+  color: var(--ink);
+}

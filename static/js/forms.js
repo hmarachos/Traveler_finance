@@ -329,6 +329,53 @@ export function wireInteractions(onDataChange) {
   
   // Repay button handler
   document.body.addEventListener("click", (event) => {
+    // One-tap settlement payment handler
+    const settlePayBtn = event.target.closest(".settle-pay-btn");
+    if (settlePayBtn) {
+      const fromId = settlePayBtn.dataset.settleFrom;
+      const toId = settlePayBtn.dataset.settleTo;
+      const amount = settlePayBtn.dataset.settleAmount;
+
+      const quickAddBtn = qs('[data-quick-add="transferForm"]');
+      if (quickAddBtn) {
+        quickAddBtn.click();
+      }
+
+      const form = qs("#transferForm");
+      if (form) {
+        if (fromId && form.elements.from_family_id) {
+          form.elements.from_family_id.value = fromId;
+        }
+        if (toId && form.elements.to_family_id) {
+          form.elements.to_family_id.value = toId;
+        }
+        if (amount && form.elements.amount) {
+          form.elements.amount.value = amount;
+        }
+      }
+      return;
+    }
+
+    // Category chip click handler
+    const categoryChip = event.target.closest(".category-chip");
+    if (categoryChip) {
+      const container = categoryChip.closest(".category-chips");
+      if (container) {
+        const targetSelector = container.dataset.selectTarget;
+        const targetSelect = targetSelector ? qs(targetSelector) : null;
+        
+        container.querySelectorAll(".category-chip").forEach(c => c.classList.remove("active"));
+        categoryChip.classList.add("active");
+        
+        const val = categoryChip.dataset.value;
+        if (targetSelect) {
+          targetSelect.value = val;
+          targetSelect.dispatchEvent(new Event("change"));
+        }
+      }
+      return;
+    }
+
     const repayButton = event.target.closest("[data-repay]");
     if (repayButton) {
       qs("#repayForm [name='loan_id']").value = repayButton.dataset.repay;

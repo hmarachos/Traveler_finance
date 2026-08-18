@@ -32,11 +32,17 @@ export function renderSummary() {
   // Header
   qs("#tripName").textContent = trip.name;
 
-  // Hero metrics - только главные
+  // Hero metrics
   qs("#totalExpenses").textContent = money(totals.expenses_minor, trip.currency);
   qs("#totalPaid").textContent = money(totals.paid_minor, trip.currency);
   qs("#familyCount").textContent = totals.families_count;
   qs("#memberCount").textContent = totals.members_count;
+
+  // Metric cards grid
+  if (qs("#loanTotal")) qs("#loanTotal").textContent = money(totals.loans_principal_minor || 0, trip.currency);
+  if (qs("#loanOpen")) qs("#loanOpen").textContent = money(totals.loans_open_minor || 0, trip.currency);
+  if (qs("#transferTotal")) qs("#transferTotal").textContent = money(totals.transfers_minor || 0, trip.currency);
+  if (qs("#advanceTotal")) qs("#advanceTotal").textContent = money(totals.advances_minor || 0, trip.currency);
 
   // Balance Overview (кто кому должен)
   renderBalanceOverview(familyStats, trip.currency);
@@ -164,48 +170,56 @@ export function renderLoans(loans) {
     loansListEl.innerHTML = loans.length
       ? loans
           .map(
-            (loan) => `
-            <article class="card" data-loan-id="${loan.id}">
-              <div class="card-title">
-                <strong>${familyName(loan.borrower_family_id)} → ${familyName(loan.lender_family_id)}</strong>
-                <span class="badge">${loan.status}</span>
-              </div>
-              <div class="grid-lines">
-                <p class="line">
-                  <span>Первоначально</span>
-                  <span>${money(loan.principal_amount_minor, currency)}</span>
-                </p>
-                <p class="line">
-                  <span>Осталось</span>
-                  <span class="${loan.remaining_amount_minor ? "negative" : "positive"}">
-                    ${money(loan.remaining_amount_minor, currency)}
-                  </span>
-                </p>
-                <p class="muted">${loan.description || "Без комментария"}</p>
-                ${loan.repayments
-                  .map(
-                    (r) =>
-                      `<p class="line muted">
-                      <span>${new Date(r.created_at).toLocaleDateString("ru-RU")} · возврат</span>
-                      <span>${money(r.amount_minor, currency)}</span>
-                    </p>`
-                  )
-                  .join("")}
-              </div>
-              ${
-                loan.remaining_amount_minor > 0
-                  ? `<div class="loan-actions">
-                      <button data-repay="${loan.id}">Вернуть часть</button>
-                      <button class="secondary" data-edit-loan="${loan.id}">Редактировать</button>
-                      <button class="danger" data-delete-loan="${loan.id}">Удалить</button>
-                    </div>`
-                  : `<div class="loan-actions">
-                      <button class="secondary" data-edit-loan="${loan.id}">Редактировать</button>
-                      <button class="danger" data-delete-loan="${loan.id}">Удалить</button>
-                    </div>`
-              }
-            </article>
-          `
+            (loan) => {
+              const repaidMinor = loan.principal_amount_minor - loan.remaining_amount_minor;
+              const repaidPercent = Math.min(100, Math.max(0, Math.round((repaidMinor / loan.principal_amount_minor) * 100)));
+
+              return `
+              <article class="card loan-item-card" data-loan-id="${loan.id}">
+                <div class="card-title">
+                  <strong>${familyName(loan.borrower_family_id)} → ${familyName(loan.lender_family_id)}</strong>
+                  <span class="badge">${loan.status}</span>
+                </div>
+                <div class="loan-progress-wrap">
+                  <div class="loan-progress-track">
+                    <div class="loan-progress-fill" style="width: ${repaidPercent}%;"></div>
+                  </div>
+                  <div class="loan-progress-meta">
+                    <span>Погашено ${repaidPercent}%</span>
+                    <span>Осталось ${money(loan.remaining_amount_minor, currency)}</span>
+                  </div>
+                </div>
+                <div class="grid-lines">
+                  <p class="line">
+                    <span>Сумма займа</span>
+                    <span>${money(loan.principal_amount_minor, currency)}</span>
+                  </p>
+                  <p class="muted">${loan.description || "Без комментария"}</p>
+                  ${loan.repayments
+                    .map(
+                      (r) =>
+                        `<p class="line muted">
+                        <span>${new Date(r.created_at).toLocaleDateString("ru-RU")} · возврат</span>
+                        <span>${money(r.amount_minor, currency)}</span>
+                      </p>`
+                    )
+                    .join("")}
+                </div>
+                ${
+                  loan.remaining_amount_minor > 0
+                    ? `<div class="loan-actions">
+                        <button data-repay="${loan.id}">Вернуть часть</button>
+                        <button class="secondary" data-edit-loan="${loan.id}">Редактировать</button>
+                        <button class="danger" data-delete-loan="${loan.id}">Удалить</button>
+                      </div>`
+                    : `<div class="loan-actions">
+                        <button class="secondary" data-edit-loan="${loan.id}">Редактировать</button>
+                        <button class="danger" data-delete-loan="${loan.id}">Удалить</button>
+                      </div>`
+                }
+              </article>
+            `;
+            }
           )
           .join("")
       : emptyState("Займов пока нет");
@@ -485,7 +499,9 @@ export function renderBalanceOverview(familyStats, currency) {
     if (amount > 0) {
       payments.push({
         from: debtors[debtorIdx].name,
+        fromId: debtors[debtorIdx].id,
         to: creditors[creditorIdx].name,
+        toId: creditors[creditorIdx].id,
         amount,
       });
     }
@@ -526,7 +542,12 @@ export function renderBalanceOverview(familyStats, currency) {
             <span class="flow-arrow">➔</span>
             <span class="fam-pill to">${p.to}</span>
           </div>
-          <div class="balance-amount-pill">${money(p.amount, currency)}</div>
+          <div class="balance-right-action">
+            <span class="balance-amount-pill">${money(p.amount, currency)}</span>
+            <button type="button" class="settle-pay-btn" data-settle-from="${p.fromId}" data-settle-to="${p.toId}" data-settle-amount="${(p.amount / 100).toFixed(2)}">
+              Перевести
+            </button>
+          </div>
         </div>
       `
         )
@@ -536,33 +557,50 @@ export function renderBalanceOverview(familyStats, currency) {
 }
 
 /**
- * Setup journal category filter
+ * Setup journal category filter, search, and type pills
  */
 export function setupJournalFilter() {
   const categoryFilter = qs('#categoryFilter');
+  const searchInput = qs('#journalSearchInput');
+  const typePills = qsa('#typeFilterPills .type-pill');
   const journalList = qs('#journalList');
   
-  if (!categoryFilter || !journalList) return;
+  if (!journalList) return;
   
-  categoryFilter.addEventListener('change', () => {
-    const selectedCategory = categoryFilter.value;
+  let currentType = "";
+
+  function applyFilters() {
+    const selectedCategory = categoryFilter ? categoryFilter.value : "";
+    const query = searchInput ? searchInput.value.trim().toLowerCase() : "";
     const items = state.journal || [];
     const currency = state.trip?.currency || "EUR";
-    
-    // Filter items
-    const filteredItems = selectedCategory 
-      ? items.filter(entry => {
-          if (entry.type === 'expense') {
-            const metaParts = entry.meta.split(' · ');
-            if (metaParts.length >= 2) {
-              const category = metaParts[1];
-              return category === selectedCategory;
-            }
-          }
+
+    const filteredItems = items.filter(entry => {
+      // 1. Type filter
+      if (currentType && entry.type !== currentType) {
+        return false;
+      }
+      // 2. Category filter
+      if (selectedCategory) {
+        if (entry.type === 'expense') {
+          const metaParts = entry.meta.split(' · ');
+          const category = metaParts.length >= 2 ? metaParts[1] : '';
+          if (category !== selectedCategory) return false;
+        } else {
           return false;
-        })
-      : items;
-    
+        }
+      }
+      // 3. Search query filter
+      if (query) {
+        const titleMatch = (entry.title || "").toLowerCase().includes(query);
+        const authorMatch = (entry.author || "").toLowerCase().includes(query);
+        const metaMatch = (entry.meta || "").toLowerCase().includes(query);
+        if (!titleMatch && !authorMatch && !metaMatch) return false;
+      }
+
+      return true;
+    });
+
     // Group filtered items by date
     const groupedItems = {};
     filteredItems.forEach(entry => {
@@ -573,16 +611,10 @@ export function setupJournalFilter() {
       groupedItems[dateLabel].push(entry);
     });
 
-    // Sort dates: today, yesterday, then descending by date
-    const sortedDates = Object.keys(groupedItems).sort((a, b) => {
-      const dateA = new Date(a);
-      const dateB = new Date(b);
-      return dateB - dateA;
-    });
-    
-    // Re-render grouped filtered list
+    const sortedDates = Object.keys(groupedItems).sort((a, b) => new Date(b) - new Date(a));
+
     if (filteredItems.length === 0) {
-      journalList.innerHTML = emptyState("Операций с этой категорией нет");
+      journalList.innerHTML = emptyState("Операций не найдено");
     } else {
       journalList.innerHTML = sortedDates
         .map(
@@ -599,7 +631,28 @@ export function setupJournalFilter() {
         )
         .join("");
     }
-  });
+  }
+
+  if (categoryFilter && !categoryFilter.dataset.hasListener) {
+    categoryFilter.addEventListener('change', applyFilters);
+    categoryFilter.dataset.hasListener = 'true';
+  }
+  if (searchInput && !searchInput.dataset.hasListener) {
+    searchInput.addEventListener('input', applyFilters);
+    searchInput.dataset.hasListener = 'true';
+  }
+  if (typePills.length > 0) {
+    typePills.forEach(pill => {
+      if (!pill.dataset.hasListener) {
+        pill.addEventListener('click', () => {
+          typePills.forEach(p => p.classList.toggle('active', p === pill));
+          currentType = pill.dataset.type || "";
+          applyFilters();
+        });
+        pill.dataset.hasListener = 'true';
+      }
+    });
+  }
 }
 
 /**

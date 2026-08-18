@@ -186,23 +186,37 @@
         <form id="expenseForm" class="entry-form active">
           <label>Описание<input name="description" required placeholder="Ресторан" /></label>
           <label>Сумма<input name="amount" required inputmode="decimal" placeholder="180.00" /></label>
-          <label>Категория
-            <select name="category" id="categorySelect">
-              <option value="Общее" selected>Общее</option>
-              <option value="Жильё">Жильё (отель/аренда)</option>
-              <option value="Транспорт">Транспорт (билеты/топливо)</option>
-              <option value="Еда">Еда и рестораны</option>
-              <option value="Продукты">Продукты (магазин)</option>
-              <option value="Развлечения">Развлечения и экскурсии</option>
-              <option value="Сувениры">Сувениры и подарки</option>
-              <option value="Здоровье">Здоровье и аптека</option>
-              <option value="Связь">Связь и интернет</option>
-              <option value="Страховка">Страховка</option>
-              <option value="Парковка">Парковка и штрафы</option>
-              <option value="Туалеты">Туалеты и общественные услуги</option>
-              <option value="Другое">Другое</option>
-            </select>
-          </label>
+          <label>Категория</label>
+          <div class="category-chips" data-select-target="#categorySelect">
+            <button type="button" class="category-chip active" data-value="Общее">📦 Общее</button>
+            <button type="button" class="category-chip" data-value="Еда">🍔 Еда</button>
+            <button type="button" class="category-chip" data-value="Продукты">🛒 Продукты</button>
+            <button type="button" class="category-chip" data-value="Жильё">🏨 Жильё</button>
+            <button type="button" class="category-chip" data-value="Транспорт">🚗 Транспорт</button>
+            <button type="button" class="category-chip" data-value="Развлечения">🎟️ Развлечения</button>
+            <button type="button" class="category-chip" data-value="Сувениры">🎁 Сувениры</button>
+            <button type="button" class="category-chip" data-value="Здоровье">💊 Здоровье</button>
+            <button type="button" class="category-chip" data-value="Связь">🌐 Связь</button>
+            <button type="button" class="category-chip" data-value="Страховка">🛡️ Страховка</button>
+            <button type="button" class="category-chip" data-value="Парковка">🅿️ Парковка</button>
+            <button type="button" class="category-chip" data-value="Туалеты">🚻 Туалеты</button>
+            <button type="button" class="category-chip" data-value="Другое">✏️ Другое</button>
+          </div>
+          <select name="category" id="categorySelect" class="hidden">
+            <option value="Общее" selected>Общее</option>
+            <option value="Жильё">Жильё</option>
+            <option value="Транспорт">Транспорт</option>
+            <option value="Еда">Еда</option>
+            <option value="Продукты">Продукты</option>
+            <option value="Развлечения">Развлечения</option>
+            <option value="Сувениры">Сувениры</option>
+            <option value="Здоровье">Здоровье</option>
+            <option value="Связь">Связь</option>
+            <option value="Страховка">Страховка</option>
+            <option value="Парковка">Парковка</option>
+            <option value="Туалеты">Туалеты</option>
+            <option value="Другое">Другое</option>
+          </select>
           <label id="customCategoryLabel" class="hidden">
             <input name="custom_category" id="customCategoryInput" placeholder="Введите свою категорию" />
           </label>
@@ -248,13 +262,22 @@
 
       <section id="journal" class="view">
         <h2>Операции</h2>
-        <div id="journalFilter" style="margin-bottom: 16px;">
-          <label style="display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px;">
-            Фильтр по категориям:
-            <select id="categoryFilter" style="flex: 1; min-height: 40px;">
+        <div class="journal-controls-wrapper">
+          <div class="search-input-wrap">
+            <span class="search-icon">🔍</span>
+            <input type="text" id="journalSearchInput" placeholder="Поиск по названию или автору..." />
+          </div>
+          <div class="journal-filter-row">
+            <div class="type-filter-pills" id="typeFilterPills">
+              <button type="button" class="type-pill active" data-type="">Все</button>
+              <button type="button" class="type-pill" data-type="expense">💳 Расходы</button>
+              <button type="button" class="type-pill" data-type="transfer">💸 Переводы</button>
+              <button type="button" class="type-pill" data-type="loan">🤝 Займы</button>
+            </div>
+            <select id="categoryFilter" class="journal-category-select">
               <option value="">Все категории</option>
             </select>
-          </label>
+          </div>
         </div>
         <div id="journalList" class="timeline"></div>
       </section>
@@ -365,23 +388,37 @@
         <input type="hidden" name="expense_id" />
         <label>Описание<input name="description" required placeholder="Ресторан" /></label>
         <label>Сумма<input name="amount" required inputmode="decimal" placeholder="180.00" /></label>
-        <label>Категория
-          <select name="category" id="editCategorySelect">
-            <option value="Общее" selected>Общее</option>
-            <option value="Жильё">Жильё (отель/аренда)</option>
-            <option value="Транспорт">Транспорт (билеты/топливо)</option>
-            <option value="Еда">Еда и рестораны</option>
-            <option value="Продукты">Продукты (магазин)</option>
-            <option value="Развлечения">Развлечения и экскурсии</option>
-            <option value="Сувениры">Сувениры и подарки</option>
-            <option value="Здоровье">Здоровье и аптека</option>
-            <option value="Связь">Связь и интернет</option>
-            <option value="Страховка">Страховка</option>
-            <option value="Парковка">Парковка и штрафы</option>
-            <option value="Туалеты">Туалеты и общественные услуги</option>
-            <option value="Другое">Другое</option>
-          </select>
-        </label>
+        <label>Категория</label>
+        <div class="category-chips" data-select-target="#editCategorySelect">
+          <button type="button" class="category-chip active" data-value="Общее">📦 Общее</button>
+          <button type="button" class="category-chip" data-value="Еда">🍔 Еда</button>
+          <button type="button" class="category-chip" data-value="Продукты">🛒 Продукты</button>
+          <button type="button" class="category-chip" data-value="Жильё">🏨 Жильё</button>
+          <button type="button" class="category-chip" data-value="Транспорт">🚗 Транспорт</button>
+          <button type="button" class="category-chip" data-value="Развлечения">🎟️ Развлечения</button>
+          <button type="button" class="category-chip" data-value="Сувениры">🎁 Сувениры</button>
+          <button type="button" class="category-chip" data-value="Здоровье">💊 Здоровье</button>
+          <button type="button" class="category-chip" data-value="Связь">🌐 Связь</button>
+          <button type="button" class="category-chip" data-value="Страховка">🛡️ Страховка</button>
+          <button type="button" class="category-chip" data-value="Парковка">🅿️ Парковка</button>
+          <button type="button" class="category-chip" data-value="Туалеты">🚻 Туалеты</button>
+          <button type="button" class="category-chip" data-value="Другое">✏️ Другое</button>
+        </div>
+        <select name="category" id="editCategorySelect" class="hidden">
+          <option value="Общее" selected>Общее</option>
+          <option value="Жильё">Жильё</option>
+          <option value="Транспорт">Транспорт</option>
+          <option value="Еда">Еда</option>
+          <option value="Продукты">Продукты</option>
+          <option value="Развлечения">Развлечения</option>
+          <option value="Сувениры">Сувениры</option>
+          <option value="Здоровье">Здоровье</option>
+          <option value="Связь">Связь</option>
+          <option value="Страховка">Страховка</option>
+          <option value="Парковка">Парковка</option>
+          <option value="Туалеты">Туалеты</option>
+          <option value="Другое">Другое</option>
+        </select>
         <label id="editCustomCategoryLabel" class="hidden">
           <input name="custom_category" id="editCustomCategoryInput" placeholder="Введите свою категорию" />
         </label>
