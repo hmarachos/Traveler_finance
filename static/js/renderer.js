@@ -298,23 +298,7 @@ export function renderJournal(items) {
             <h3 class="journal-date-header">${dateLabel}</h3>
             <div class="timeline">
               ${groupedItems[dateLabel]
-                .map(
-                  (entry) => `
-                <article class="timeline-item clickable" data-entry-id="${entry.id}" data-entry-type="${entry.type}">
-                  <p class="line">
-                    <span>${getTransactionLabel(entry.type)} · ${entry.title}</span>
-                    <span>${money(entry.amount_minor, currency)}</span>
-                  </p>
-                  <p class="meta">
-                    ${entry.author || 'Система'} · ${entry.meta}${
-                    entry.remaining_amount_minor !== undefined
-                      ? ` · остаток ${money(entry.remaining_amount_minor, currency)}`
-                      : ""
-                  }
-                  </p>
-                </article>
-              `
-                )
+                .map((entry) => renderOperationCard(entry, currency))
                 .join("")}
             </div>
           </section>
@@ -323,6 +307,64 @@ export function renderJournal(items) {
         .join("");
     }
   }
+}
+
+/**
+ * Render individual operation card
+ */
+export function renderOperationCard(entry, currency) {
+  const icons = {
+    expense: "💳",
+    transfer: "💸",
+    advance: "⚡",
+    loan: "🤝",
+    loan_repayment: "↩️",
+  };
+  const icon = icons[entry.type] || "📄";
+  const typeLabel = getTransactionLabel(entry.type);
+
+  let categoryPill = "";
+  let metaDetail = entry.meta || "";
+
+  if (entry.type === "expense") {
+    const metaParts = entry.meta.split(" · ");
+    if (metaParts.length >= 2) {
+      metaDetail = metaParts[0].trim();
+      categoryPill = metaParts[1].trim();
+      if (metaParts.length >= 3) {
+        metaDetail += ` · ${metaParts[2].trim()}`;
+      }
+    }
+  }
+
+  const formattedAmount = money(entry.amount_minor, currency);
+  const remainingChip =
+    entry.remaining_amount_minor !== undefined
+      ? `<span class="card-remaining-chip">остаток ${money(entry.remaining_amount_minor, currency)}</span>`
+      : "";
+
+  return `
+    <article class="timeline-item clickable type-${entry.type}" data-entry-id="${entry.id}" data-entry-type="${entry.type}">
+      <div class="card-top-row">
+        <div class="card-badges">
+          <span class="op-badge type-${entry.type}">
+            <span class="badge-icon">${icon}</span>
+            <span class="badge-label">${typeLabel}</span>
+          </span>
+          ${categoryPill ? `<span class="category-pill">${categoryPill}</span>` : ""}
+        </div>
+        <div class="card-amount type-${entry.type}">${formattedAmount}</div>
+      </div>
+      <div class="card-main-row">
+        <h4 class="card-title-text">${entry.title || typeLabel}</h4>
+      </div>
+      <div class="card-bottom-row">
+        <span class="card-meta-detail">${metaDetail}</span>
+        ${remainingChip}
+        <span class="card-author">👤 ${entry.author || "Система"}</span>
+      </div>
+    </article>
+  `;
 }
 
 /**
@@ -549,23 +591,7 @@ export function setupJournalFilter() {
             <h3 class="journal-date-header">${dateLabel}</h3>
             <div class="timeline">
               ${groupedItems[dateLabel]
-                .map(
-                  (entry) => `
-                <article class="timeline-item clickable" data-entry-id="${entry.id}" data-entry-type="${entry.type}">
-                  <p class="line">
-                    <span>${getTransactionLabel(entry.type)} · ${entry.title}</span>
-                    <span>${money(entry.amount_minor, currency)}</span>
-                  </p>
-                  <p class="meta">
-                    ${entry.author || 'Система'} · ${entry.meta}${
-                    entry.remaining_amount_minor !== undefined
-                      ? ` · остаток ${money(entry.remaining_amount_minor, currency)}`
-                      : ""
-                  }
-                  </p>
-                </article>
-              `
-                )
+                .map((entry) => renderOperationCard(entry, currency))
                 .join("")}
             </div>
           </section>
